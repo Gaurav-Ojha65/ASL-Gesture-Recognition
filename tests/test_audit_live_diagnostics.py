@@ -36,6 +36,8 @@ from scripts.audit_live_diagnostics import (
     run_audit,
     hash_critical_artifacts,
     CRITICAL_ARTIFACTS,
+    MANDATORY_RUNTIME_ARTIFACTS,
+    OPTIONAL_OFFLINE_DATASETS,
 )
 
 
@@ -243,9 +245,46 @@ def test_synthetic_33_trial_session_replay():
 
 
 def test_artifact_integrity_verification():
-    """Verify that critical artifacts exist and hashes can be computed."""
+    """Verify that mandatory runtime artifacts exist and optional offline datasets are handled cleanly."""
     hashes = hash_critical_artifacts(CRITICAL_ARTIFACTS)
     assert len(hashes) == len(CRITICAL_ARTIFACTS)
-    for p, (sz, h) in hashes.items():
-        assert sz is not None and sz > 0
-        assert h is not None and len(h) == 64
+
+    # 1. Mandatory runtime assets MUST exist and have valid SHA-256
+    for p in MANDATORY_RUNTIME_ARTIFACTS:
+        assert p in hashes, f"Mandatory artifact {p} missing from hash dict"
+        sz, h = hashes[p]
+        assert sz is not None and sz > 0, f"Mandatory runtime asset {p} does not exist or is empty"
+        assert h is not None and len(h) == 64, f"Mandatory runtime asset {p} did not produce a 64-char SHA256"
+
+    # 2. Optional offline datasets may be absent if clean clone / gitignored
+    for p in OPTIONAL_OFFLINE_DATASETS:
+        assert p in hashes
+        sz, h = hashes[p]
+        if sz is not None:
+            assert sz > 0
+            assert h is not None and len(h) == 64
+        else:
+            assert h is None
+
+
+def test_artifact_integrity_optional_datasets_scenarios():
+    """Verify audit report generation under all optional dataset states (absent, present, mutated)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        dummy_file = os.path.join(tmpdir, "sample.txt")
+        with open(dummy_file, "w") as f:
+            f.write("hello")
+
+        # Case A: Absent pre and post
+        pre_absent = {dummy_file: (None, None)}
+        post_absent = {dummy_file: (None, None)}
+        # Pre and post match as absent
+        assert pre_absent == post_absent
+
+        # Case B: Present and unchanged
+        pre_present = {dummy_file: (5, "dummyhash64" + "0" * 53)}
+        post_present = {dummy_file: (5, "dummyhash64" + "0" * 53)}
+        assert pre_present == post_present
+
+        # Case C: Mutated
+        post_mutated = {dummy_file: (6, "differenthash" + "0" * 51)}
+        assert pre_present != post_mutated

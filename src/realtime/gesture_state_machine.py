@@ -22,12 +22,12 @@ class StateMachineConfig:
     """
     Configuration parameters for the gesture temporal state machine.
 
-    Provisional engineering defaults:
-    - dwell_duration: 0.60s (sustained gesture duration before committing)
+    Defaults:
+    - dwell_duration: 0.40s (sustained gesture duration before committing; optimized for responsive live typing)
     - release_duration: 0.25s (sustained absence of hand before re-arming the same sign)
     - min_confidence: 0.70 (minimum prediction probability to be considered valid)
     """
-    dwell_duration: float = 0.60
+    dwell_duration: float = 0.40
     release_duration: float = 0.25
     min_confidence: float = 0.70
 

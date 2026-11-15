@@ -41,6 +41,13 @@ from src.realtime.gesture_state_machine import (
     CommitEvent
 )
 from src.realtime.text_buffer import TextBuffer
+from src.realtime.temporal_sequence import (
+    TemporalSequenceBuffer,
+    DynamicTrajectoryClassifier,
+    DynamicRecognitionResult
+)
+from src.realtime.speech import SpeechEngine
+from src.landmarks.geometric_disambiguator import ASLGeometricDisambiguator
 
 
 # ─── Diagnostic CSV schema ────────────────────────────────────────────────────
@@ -230,30 +237,61 @@ class ASLRealTimePipeline:
         self,
         checkpoint_path: str = "models/asl_landmark_mlp_best.pt",
         task_model_path: str = "hand_landmarker.task",
-        dwell_duration: float = 0.60,
+        dwell_duration: float = 0.40,
         release_duration: float = 0.25,
         min_confidence: float = 0.70,
         detector: Optional[vision.HandLandmarker] = None,
         inference_engine: Optional[ASLInferenceEngine] = None,
-        mirror_feed: bool = True
+        mirror_feed: bool = True,
+        enable_dynamic: bool = True,
+        enable_speech: bool = True,
+        speech_engine: Optional[SpeechEngine] = None,
+        smoothing_window: int = 3,
+        enable_disambiguation: bool = True,
     ):
         """
         Args:
             checkpoint_path: Path to PyTorch model checkpoint.
             task_model_path: Path to MediaPipe hand_landmarker.task.
-            dwell_duration: Dwell confirmation duration in seconds (default: 0.60).
+            dwell_duration: Dwell confirmation duration in seconds (default: 0.40).
             release_duration: Sustained no-hand duration before re-arming in seconds (default: 0.25).
             min_confidence: Minimum prediction probability threshold (default: 0.70).
             detector: Optional pre-initialized MediaPipe HandLandmarker (useful for testing/mocking).
             inference_engine: Optional pre-initialized ASLInferenceEngine.
             mirror_feed: Whether to mirror webcam feed horizontally (default: True).
+            enable_dynamic: Whether to enable dynamic J and Z gesture recognition (default: True).
+            enable_speech: Whether to enable text-to-speech audio synthesis (default: True).
+            speech_engine: Optional pre-initialized SpeechEngine.
+            smoothing_window: Moving average smoothing window size for prediction probabilities (default: 3).
+            enable_disambiguation: Whether to enable anatomical geometric disambiguation (default: True).
         """
         self.checkpoint_path = checkpoint_path
         self.task_model_path = task_model_path
         self.mirror_feed = mirror_feed
+        self.enable_dynamic = enable_dynamic
+        self.enable_speech = enable_speech
+        self.smoothing_window = smoothing_window
+        self.enable_disambiguation = enable_disambiguation
 
-        # 1. Initialize Normalizer
+        # Initialize speech engine
+        if speech_engine is not None:
+            self.speech_engine: Optional[SpeechEngine] = speech_engine
+        elif self.enable_speech:
+            self.speech_engine = SpeechEngine(enabled=True)
+        else:
+            self.speech_engine = None
+
+        # Initialize dynamic gesture components
+        if self.enable_dynamic:
+            self.seq_buffer: Optional[TemporalSequenceBuffer] = TemporalSequenceBuffer(max_len=35)
+            self.dynamic_classifier: Optional[DynamicTrajectoryClassifier] = DynamicTrajectoryClassifier()
+        else:
+            self.seq_buffer = None
+            self.dynamic_classifier = None
+
+        # 1. Initialize Normalizer and Geometric Disambiguator
         self.normalizer = LandmarkNormalizer()
+        self.geometric_disambiguator = ASLGeometricDisambiguator()
 
         # 2. Initialize Inference Engine
         if inference_engine is not None:
@@ -261,7 +299,10 @@ class ASLRealTimePipeline:
         else:
             if not os.path.exists(checkpoint_path):
                 raise FileNotFoundError(f"Checkpoint not found at: {checkpoint_path}")
-            self.inference_engine = ASLInferenceEngine(checkpoint_path=checkpoint_path)
+            self.inference_engine = ASLInferenceEngine(
+                checkpoint_path=checkpoint_path,
+                smoothing_window=smoothing_window
+            )
 
         # 3. Initialize MediaPipe Detector
         if detector is not None:
@@ -384,6 +425,8 @@ class ASLRealTimePipeline:
         if not has_hand:
             # Case A: No hand detected (Genuine absence)
             status = "NO_HAND"
+            if hasattr(self.inference_engine, "reset_smoothing"):
+                self.inference_engine.reset_smoothing()
             commit_event = self.state_machine.process_observation(
                 label=None,
                 confidence=0.0,
@@ -404,6 +447,8 @@ class ASLRealTimePipeline:
             if not is_valid:
                 # Case B: Hand detected, but features invalid (e.g. zero-scale)
                 # Treat as uncertain observation without releasing the hold latch!
+                if hasattr(self.inference_engine, "reset_smoothing"):
+                    self.inference_engine.reset_smoothing()
                 status = f"INVALID_FEATURES: {norm_reason}"
                 error_category = "INVALID_FEATURES"
                 safe_label = self.state_machine.latched_label or self.state_machine.current_candidate or 'A'
@@ -422,9 +467,35 @@ class ASLRealTimePipeline:
                     pred_conf = inf_result.confidence
                     probabilities = inf_result.probabilities
 
+                    # Apply fine-grained geometric disambiguation for anatomical clusters
+                    if (
+                        self.enable_disambiguation
+                        and self.geometric_disambiguator is not None
+                        and landmarks_dict is not None
+                        and isinstance(self.inference_engine, ASLInferenceEngine)
+                    ):
+                        lm_arr = np.array(
+                            [[lm['x'], lm['y'], lm.get('z', 0.0)] for lm in landmarks_dict],
+                            dtype=np.float32
+                        )
+                        refined_label, refined_conf, _ = self.geometric_disambiguator.disambiguate(
+                            predicted_label=pred_label,
+                            confidence=pred_conf,
+                            probabilities=probabilities,
+                            landmarks=lm_arr,
+                            handedness=handedness_cat or "Right"
+                        )
+                        pred_label = refined_label
+                        pred_conf = refined_conf
+
+                    # Prevent stationary hands from falsely dwelling on dynamic J/Z
+                    sm_label = pred_label
+                    if self.enable_dynamic and pred_label in ('J', 'Z'):
+                        sm_label = 'I' if pred_label == 'J' else 'D'
+
                     status = "VALID_PREDICTION"
                     commit_event = self.state_machine.process_observation(
-                        label=pred_label,
+                        label=sm_label,
                         confidence=pred_conf,
                         hand_detected=True,
                         timestamp=timestamp_sec
@@ -440,9 +511,53 @@ class ASLRealTimePipeline:
                         timestamp=timestamp_sec
                     )
 
-        # 7. Consume commit event into text buffer
+        # 6.5 Dynamic Gesture Evaluation (J and Z stroke trajectories)
+        if self.enable_dynamic and self.seq_buffer is not None and self.dynamic_classifier is not None:
+            if has_hand and landmarks_dict is not None and norm_success and features is not None:
+                self.seq_buffer.push(
+                    timestamp=timestamp_sec,
+                    landmarks=landmarks_dict,
+                    is_valid=True,
+                    handedness=handedness_cat or "Right",
+                    features_63=features
+                )
+            else:
+                self.seq_buffer.push(
+                    timestamp=timestamp_sec,
+                    landmarks=None,
+                    is_valid=False
+                )
+
+            dyn_res = self.dynamic_classifier.evaluate_sequence(
+                self.seq_buffer,
+                current_time=timestamp_sec
+            )
+            if dyn_res.detected and dyn_res.gesture is not None:
+                commit_event = CommitEvent(
+                    label=dyn_res.gesture,
+                    timestamp=timestamp_sec,
+                    confidence=dyn_res.confidence,
+                    dwell_time=0.0,
+                    metadata={"dynamic": True, "reason": dyn_res.reason}
+                )
+                pred_label = dyn_res.gesture
+                pred_conf = dyn_res.confidence
+                status = f"DYNAMIC_GESTURE: {dyn_res.gesture}"
+                self.state_machine.reset()
+
+        # 7. Consume commit event into text buffer and trigger speech
         if commit_event is not None:
             self.text_buffer.apply(commit_event)
+            if self.speech_engine is not None:
+                self.speech_engine.on_commit_event(
+                    commit_event.label,
+                    self.text_buffer.get_text(),
+                    timestamp=timestamp_sec
+                )
+
+        # Check pause-based speech for completed unspaced word
+        if self.speech_engine is not None:
+            self.speech_engine.update_pause_check(current_time=timestamp_sec)
 
         # 8. Render HUD
         annotated_frame = self.render_hud(
@@ -515,6 +630,16 @@ class ASLRealTimePipeline:
         cv2.putText(out, "ASL Gesture Recognition", (15, 32),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (240, 240, 240), 2, cv2.LINE_AA)
 
+        # Speech Status Indicator
+        if hasattr(self, 'speech_engine') and self.speech_engine is not None and self.speech_engine.is_enabled:
+            speech_text = "Speech: ON"
+            speech_color = (0, 255, 128)
+        else:
+            speech_text = "Speech: OFF"
+            speech_color = (130, 130, 130)
+        cv2.putText(out, speech_text, (w - 300, 32),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.58, speech_color, 2, cv2.LINE_AA)
+
         # FPS Display
         fps_text = f"FPS: {fps:.1f}" if fps > 0 else "FPS: --"
         cv2.putText(out, fps_text, (w - 140, 32),
@@ -582,16 +707,31 @@ class ASLRealTimePipeline:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.85, text_col, 2, cv2.LINE_AA)
 
         # 5. Instructions footer
-        cv2.putText(out, "Controls: [Q] / [ESC] Quit  |  [C] Clear Buffer", (25, h - 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (160, 160, 160), 1, cv2.LINE_AA)
+        cv2.putText(out, "SPACE: Complete Word  |  BACKSPACE/DEL: Delete  |  C: Clear  |  V: Toggle Speech  |  Q/ESC: Quit",
+                    (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (180, 180, 180), 1, cv2.LINE_AA)
 
         return out
 
     def close(self) -> None:
-        """Releases underlying MediaPipe detector if owned."""
+        """Releases underlying MediaPipe detector, sequence buffer, and speech worker."""
         if hasattr(self, '_owns_detector') and self._owns_detector and self.detector is not None:
             try:
                 self.detector.close()
+            except Exception:
+                pass
+        if hasattr(self, 'speech_engine') and self.speech_engine is not None:
+            try:
+                self.speech_engine.stop(timeout=1.0)
+            except Exception:
+                pass
+        if hasattr(self, 'seq_buffer') and self.seq_buffer is not None:
+            try:
+                self.seq_buffer.clear()
+            except Exception:
+                pass
+        if hasattr(self, 'inference_engine') and hasattr(self.inference_engine, 'reset_smoothing'):
+            try:
+                self.inference_engine.reset_smoothing()
             except Exception:
                 pass
 
@@ -600,13 +740,15 @@ def run_app(
     camera_index: int = 0,
     checkpoint_path: str = "models/asl_landmark_mlp_best.pt",
     task_model_path: str = "hand_landmarker.task",
-    dwell_duration: float = 0.60,
+    dwell_duration: float = 0.40,
     release_duration: float = 0.25,
     min_confidence: float = 0.70,
     mirror_feed: bool = True,
     max_frames: Optional[int] = None,
     enable_diagnostics: bool = False,
     diagnostics_dir: str = "reports/live_diagnostics",
+    enable_dynamic: bool = True,
+    enable_speech: bool = True,
 ) -> int:
     """
     Main application runner.
@@ -618,6 +760,8 @@ def run_app(
         enable_diagnostics: When True, writes a per-session CSV under diagnostics_dir.
                             Disabled by default. Does NOT capture or store video/images.
         diagnostics_dir:    Directory for diagnostic CSVs (default: reports/live_diagnostics).
+        enable_dynamic:     When True, enables kinematic trajectory recognition for dynamic J and Z.
+        enable_speech:      When True, enables asynchronous text-to-speech audio synthesis.
     """
     from src.landmarks.labels import SEMANTIC_CLASSES
 
@@ -631,6 +775,8 @@ def run_app(
     print(f"Release duration:   {release_duration}s")
     print(f"Min confidence:     {min_confidence}")
     print(f"Mirror feed:        {mirror_feed}")
+    print(f"Dynamic J/Z:        {'ENABLED' if enable_dynamic else 'disabled'}")
+    print(f"Speech (TTS):       {'ENABLED' if enable_speech else 'disabled'}")
     print(f"Diagnostics:        {'ENABLED' if enable_diagnostics else 'disabled'}")
     print("=" * 70)
 
@@ -642,7 +788,9 @@ def run_app(
             dwell_duration=dwell_duration,
             release_duration=release_duration,
             min_confidence=min_confidence,
-            mirror_feed=mirror_feed
+            mirror_feed=mirror_feed,
+            enable_dynamic=enable_dynamic,
+            enable_speech=enable_speech
         )
     except FileNotFoundError as e:
         print(f"Startup Error: Missing required file: {e}")
@@ -723,13 +871,47 @@ def run_app(
 
             cv2.imshow(window_name, result.frame)
 
-            key = cv2.waitKey(1) & 0xFF
-            if key in (ord('q'), ord('Q'), 27):  # Q or ESC
-                print("\nQuit requested by user.")
-                break
-            elif key in (ord('c'), ord('C')):
-                pipeline.text_buffer.clear()
-                print("Text buffer cleared.")
+            # Keyboard input handling supporting full ASCII and extended Windows key codes
+            raw_key = cv2.waitKeyEx(1)
+            key_byte = raw_key & 0xFF if raw_key != -1 else -1
+
+            if raw_key != -1:
+                # 1. Quit (Q, q, ESC)
+                if key_byte in (ord('q'), ord('Q'), 27) or raw_key == 27:
+                    print("\nQuit requested by user.")
+                    break
+
+                # 2. SPACE (ASCII 32): Complete current word, append separator, speak word
+                elif key_byte == 32 or raw_key == 32:
+                    current_text = pipeline.text_buffer.get_text()
+                    words = current_text.strip().split()
+                    last_word = words[-1] if words else ""
+                    buffer_modified = pipeline.text_buffer.apply("SPACE")
+                    if buffer_modified:
+                        print(f"Word completed via keyboard SPACE: '{last_word}'")
+                        if pipeline.speech_engine is not None and last_word:
+                            pipeline.speech_engine.on_commit_event("SPACE", pipeline.text_buffer.get_text(), timestamp=now)
+
+                # 3. BACKSPACE (ASCII 8) or DELETE (ASCII 127, raw_key 3014656, 0x2E0000, 65535, 46)
+                elif key_byte in (8, 127) or raw_key in (8, 127, 46, 3014656, 0x2E0000, 65535):
+                    buffer_modified = pipeline.text_buffer.apply("DELETE")
+                    if buffer_modified:
+                        print("Character deleted via keyboard.")
+                        if pipeline.speech_engine is not None:
+                            pipeline.speech_engine.on_commit_event("DELETE", pipeline.text_buffer.get_text(), timestamp=now)
+
+                # 4. Clear buffer (C or c)
+                elif key_byte in (ord('c'), ord('C')):
+                    pipeline.text_buffer.clear()
+                    if pipeline.speech_engine is not None:
+                        pipeline.speech_engine.on_commit_event("DELETE", "", timestamp=now)
+                    print("Text buffer cleared.")
+
+                # 5. Toggle speech (V or v)
+                elif key_byte in (ord('v'), ord('V')):
+                    if pipeline.speech_engine is not None:
+                        new_speech_state = pipeline.speech_engine.toggle()
+                        print(f"Text-to-speech audio toggled: {'ON' if new_speech_state else 'OFF'}")
 
             if max_frames is not None and processed_frame_index >= max_frames:
                 print(f"Reached maximum frame limit ({max_frames}). Stopping.")
@@ -774,6 +956,10 @@ def main():
                         help="Enable per-session diagnostic CSV logging (disabled by default)")
     parser.add_argument("--diagnostics-dir", type=str, default="reports/live_diagnostics",
                         help="Directory for diagnostic CSV files (default: reports/live_diagnostics)")
+    parser.add_argument("--no-dynamic", action="store_true",
+                        help="Disable dynamic J and Z trajectory gesture recognition")
+    parser.add_argument("--no-speech", action="store_true",
+                        help="Disable text-to-speech audio synthesis")
 
     args = parser.parse_args()
 
@@ -788,6 +974,8 @@ def main():
         max_frames=args.max_frames,
         enable_diagnostics=args.diagnostics,
         diagnostics_dir=args.diagnostics_dir,
+        enable_dynamic=not args.no_dynamic,
+        enable_speech=not args.no_speech,
     )
     sys.exit(exit_code)
 

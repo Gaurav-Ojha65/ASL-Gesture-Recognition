@@ -51,13 +51,22 @@ TARGET_LETTERS = ["D", "F", "G", "J", "N", "O", "I", "S", "T", "X", "Z"]
 TRIALS_PER_LETTER = 3
 TOTAL_INTENDED_TRIALS = len(TARGET_LETTERS) * TRIALS_PER_LETTER  # 33
 
-CRITICAL_ARTIFACTS = [
+# Mandatory runtime assets required for live application execution
+MANDATORY_RUNTIME_ARTIFACTS = [
     "models/asl_landmark_mlp_best.pt",
+    "hand_landmarker.task",
+]
+
+# Optional offline datasets used exclusively for model retraining or offline evaluation
+OPTIONAL_OFFLINE_DATASETS = [
     "data/processed/landmarks/full/landmarks_train.parquet",
     "data/processed/landmarks/full/landmarks_validation.parquet",
     "data/processed/landmarks/full/landmarks_internal_test.parquet",
     "data/processed/landmarks/external/external_hand_landmarks.parquet",
 ]
+
+# Backward compatibility alias
+CRITICAL_ARTIFACTS = MANDATORY_RUNTIME_ARTIFACTS + OPTIONAL_OFFLINE_DATASETS
 
 
 # ─── SHA-256 Integrity Helpers ────────────────────────────────────────────────
@@ -490,15 +499,52 @@ def build_audit_report(
     # Integrity verification
     integrity_rows = []
     all_artifacts_match = True
-    for p in CRITICAL_ARTIFACTS:
+
+    # 1. Verify Mandatory Runtime Artifacts (Must exist and match SHA-256 pre and post)
+    for p in MANDATORY_RUNTIME_ARTIFACTS:
         pre_sz, pre_h = artifact_pre.get(p, (None, None))
         post_sz, post_h = artifact_post.get(p, (None, None))
-        match = (pre_sz == post_sz) and (pre_h == post_h) and (post_h is not None)
-        if not match:
+        exists_and_matches = (
+            pre_sz is not None
+            and pre_sz > 0
+            and post_sz == pre_sz
+            and pre_h is not None
+            and post_h == pre_h
+        )
+        if not exists_and_matches:
             all_artifacts_match = False
+            status_str = "❌ MISSING / MODIFIED"
+        else:
+            status_str = "✅ UNCHANGED"
+
         integrity_rows.append(
-            f"| `{os.path.basename(p)}` | {post_sz or 'N/A'} bytes | "
-            f"`{post_h[:12] if post_h else 'N/A'}...` | {'✅ UNCHANGED' if match else '❌ MODIFIED'} |"
+            f"| `{os.path.basename(p)}` (Runtime Mandatory) | {post_sz or 'N/A'} bytes | "
+            f"`{post_h[:12] if post_h else 'N/A'}...` | {status_str} |"
+        )
+
+    # 2. Verify Optional Offline Datasets
+    for p in OPTIONAL_OFFLINE_DATASETS:
+        pre_sz, pre_h = artifact_pre.get(p, (None, None))
+        post_sz, post_h = artifact_post.get(p, (None, None))
+
+        if pre_sz is None and post_sz is None:
+            # Intentionally absent from clean clone / gitignored
+            status_str = "⚪ ABSENT (OFFLINE ONLY)"
+        elif pre_sz is not None and post_sz is None:
+            all_artifacts_match = False
+            status_str = "❌ REMOVED"
+        elif pre_sz is None and post_sz is not None:
+            all_artifacts_match = False
+            status_str = "⚠️ UNEXPECTED ADDITION"
+        elif pre_sz == post_sz and pre_h == post_h:
+            status_str = "✅ UNCHANGED"
+        else:
+            all_artifacts_match = False
+            status_str = "❌ MODIFIED"
+
+        integrity_rows.append(
+            f"| `{os.path.basename(p)}` (Offline Dataset) | {post_sz or 'N/A'} bytes | "
+            f"`{post_h[:12] if post_h else 'N/A'}...` | {status_str} |"
         )
 
     # Determine overall audit status
@@ -790,14 +836,31 @@ def run_audit(csv_path_override: Optional[str] = None) -> int:
     print("\n[5/5] Checking post-audit artifact integrity...")
     artifact_post = hash_critical_artifacts(CRITICAL_ARTIFACTS)
     integrity_ok = True
-    for p in CRITICAL_ARTIFACTS:
-        pre_sz, pre_h = artifact_pre[p]
-        post_sz, post_h = artifact_post[p]
-        if pre_sz != post_sz or pre_h != post_h:
+
+    # Check Mandatory Runtime Assets
+    for p in MANDATORY_RUNTIME_ARTIFACTS:
+        pre_sz, pre_h = artifact_pre.get(p, (None, None))
+        post_sz, post_h = artifact_post.get(p, (None, None))
+        if pre_sz is None or pre_sz == 0:
             integrity_ok = False
-            print(f"  [MUTATION DETECTED]: {os.path.basename(p)}")
+            print(f"  [MISSING MANDATORY RUNTIME ASSET]: {os.path.basename(p)}")
+        elif pre_sz != post_sz or pre_h != post_h:
+            integrity_ok = False
+            print(f"  [MUTATION DETECTED IN RUNTIME ASSET]: {os.path.basename(p)}")
         else:
-            print(f"  [OK] {os.path.basename(p)}: unchanged")
+            print(f"  [OK] Mandatory runtime asset {os.path.basename(p)}: unchanged")
+
+    # Check Optional Offline Datasets
+    for p in OPTIONAL_OFFLINE_DATASETS:
+        pre_sz, pre_h = artifact_pre.get(p, (None, None))
+        post_sz, post_h = artifact_post.get(p, (None, None))
+        if pre_sz is None and post_sz is None:
+            print(f"  [INFO] Optional offline dataset {os.path.basename(p)}: absent (gitignored)")
+        elif pre_sz != post_sz or pre_h != post_h:
+            integrity_ok = False
+            print(f"  [MUTATION DETECTED IN OFFLINE DATASET]: {os.path.basename(p)}")
+        else:
+            print(f"  [OK] Optional offline dataset {os.path.basename(p)}: unchanged")
 
     # Generate Report
     report = build_audit_report(

@@ -1,6 +1,6 @@
 # STEP 9.4 — Live Diagnostic Log Analysis & Independent Audit Report
 
-**Date:** 2026-11-06 01:39:10
+**Date:** 2026-11-16 00:51:29
 **Workspace:** `.` (Project Root)
 **Overall Audit Status:** **PASS**
 **Session File:** `session_synthetic.csv`
@@ -128,11 +128,12 @@ All model checkpoints and dataset Parquets were independently verified via SHA-2
 
 | Artifact Path | Size | SHA-256 (first 12 chars) | Status |
 | :--- | :---: | :---: | :---: |
-| `asl_landmark_mlp_best.pt` | 235896 bytes | `dde94ee67f62...` | ✅ UNCHANGED |
-| `landmarks_train.parquet` | 20741872 bytes | `cbcb94a7b365...` | ✅ UNCHANGED |
-| `landmarks_validation.parquet` | 3455721 bytes | `d53ca09d26ed...` | ✅ UNCHANGED |
-| `landmarks_internal_test.parquet` | 1649972 bytes | `31cba0cf25fa...` | ✅ UNCHANGED |
-| `external_hand_landmarks.parquet` | 308352 bytes | `e25b1ae9823f...` | ✅ UNCHANGED |
+| `asl_landmark_mlp_best.pt` (Runtime Mandatory) | 235896 bytes | `dde94ee67f62...` | ✅ UNCHANGED |
+| `hand_landmarker.task` (Runtime Mandatory) | 7819105 bytes | `fbc2a30080c3...` | ✅ UNCHANGED |
+| `landmarks_train.parquet` (Offline Dataset) | N/A bytes | `N/A...` | ⚪ ABSENT (OFFLINE ONLY) |
+| `landmarks_validation.parquet` (Offline Dataset) | N/A bytes | `N/A...` | ⚪ ABSENT (OFFLINE ONLY) |
+| `landmarks_internal_test.parquet` (Offline Dataset) | N/A bytes | `N/A...` | ⚪ ABSENT (OFFLINE ONLY) |
+| `external_hand_landmarks.parquet` (Offline Dataset) | N/A bytes | `N/A...` | ⚪ ABSENT (OFFLINE ONLY) |
 
 > [!IMPORTANT]
 > **Integrity Confirmed:** Zero weights or datasets were modified during this audit.

@@ -1,0 +1,163 @@
+{
+  "performance": {
+    "metadata": {
+      "timestamp": "2026-11-15 22:08:17",
+      "python_version": "3.12.10",
+      "os": "Windows-11-10.0.26200-SP0",
+      "cpu_count": 12,
+      "model_parameters": 18524,
+      "warmup_runs": 10,
+      "benchmark_runs": 100
+    },
+    "component_benchmarks_without_tts": {
+      "landmark_normalization": {
+        "mean_ms": 0.0116,
+        "median_ms": 0.0116,
+        "p95_ms": 0.0116,
+        "min_ms": 0.0116,
+        "max_ms": 0.0116
+      },
+      "pytorch_mlp_inference": {
+        "mean_ms": 0.1554,
+        "median_ms": 0.0992,
+        "p95_ms": 0.3273,
+        "min_ms": 0.0915,
+        "max_ms": 0.7885
+      },
+      "dynamic_trajectory_evaluation": {
+        "mean_ms": 0.0355,
+        "median_ms": 0.0322,
+        "p95_ms": 0.0516,
+        "min_ms": 0.0317,
+        "max_ms": 0.065
+      },
+      "state_machine_and_buffer": {
+        "mean_ms": 0.0007,
+        "median_ms": 0.0005,
+        "p95_ms": 0.0009,
+        "min_ms": 0.0004,
+        "max_ms": 0.0092
+      },
+      "speech_queue_enqueue": null
+    },
+    "component_benchmarks_with_tts": {
+      "landmark_normalization": {
+        "mean_ms": 0.0153,
+        "median_ms": 0.0153,
+        "p95_ms": 0.0153,
+        "min_ms": 0.0153,
+        "max_ms": 0.0153
+      },
+      "pytorch_mlp_inference": {
+        "mean_ms": 0.2772,
+        "median_ms": 0.1169,
+        "p95_ms": 1.0785,
+        "min_ms": 0.0909,
+        "max_ms": 2.3461
+      },
+      "dynamic_trajectory_evaluation": {
+        "mean_ms": 0.0721,
+        "median_ms": 0.0757,
+        "p95_ms": 0.1046,
+        "min_ms": 0.0316,
+        "max_ms": 0.5592
+      },
+      "state_machine_and_buffer": {
+        "mean_ms": 0.0008,
+        "median_ms": 0.0005,
+        "p95_ms": 0.0009,
+        "min_ms": 0.0004,
+        "max_ms": 0.0103
+      },
+      "speech_queue_enqueue": {
+        "mean_ms": 0.0251,
+        "median_ms": 0.0139,
+        "p95_ms": 0.0852,
+        "min_ms": 0.0009,
+        "max_ms": 0.3862
+      }
+    },
+    "estimated_post_perception_latency_ms": 0.2032,
+    "tts_overhead_on_main_thread_ms": 0.0251
+  },
+  "degradations": {
+    "baseline": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "brightness_dark_0.5x": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "brightness_bright_1.5x": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "gaussian_noise_sigma15": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "gaussian_noise_sigma30": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "motion_blur_k5": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "motion_blur_k9": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "occlusion_corner_15pct": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "occlusion_center_20pct": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "scale_far_0.75x": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "scale_close_1.25x": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "rotation_tilt_15deg": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    },
+    "rotation_tilt_neg15deg": {
+      "detection_rate": 1.0,
+      "evaluated_samples": 6,
+      "accuracy": 1.0,
+      "macro_f1": 1.0
+    }
+  }
+}

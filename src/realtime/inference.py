@@ -12,6 +12,7 @@ Wraps the trained ASLLandmarkMLP model with:
 
 import os
 import math
+from collections import deque
 from dataclasses import dataclass
 from typing import Optional, Union, Dict, Any
 import numpy as np
@@ -40,12 +41,16 @@ class ASLInferenceEngine:
     def __init__(
         self,
         checkpoint_path: str = "models/asl_landmark_mlp_best.pt",
-        device: Optional[torch.device] = None
+        device: Optional[torch.device] = None,
+        smoothing_window: int = 3,
+        enable_smoothing: bool = True
     ):
         """
         Args:
             checkpoint_path: Path to the trained PyTorch checkpoint.
             device: Explicit torch device (if None, selects CUDA if available, else CPU).
+            smoothing_window: Temporal moving average window size (default: 3 frames).
+            enable_smoothing: Whether to apply temporal probability smoothing (default: True).
 
         Raises:
             FileNotFoundError: If the checkpoint path does not exist.
@@ -56,6 +61,9 @@ class ASLInferenceEngine:
 
         self.checkpoint_path = checkpoint_path
         self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.smoothing_window = max(1, int(smoothing_window))
+        self.enable_smoothing = enable_smoothing
+        self._prob_history: deque = deque(maxlen=self.smoothing_window)
 
         # Load checkpoint
         checkpoint = torch.load(self.checkpoint_path, map_location=self.device, weights_only=False)
@@ -87,6 +95,14 @@ class ASLInferenceEngine:
         self.model.to(self.device)
         self.model.eval()
 
+    def reset_smoothing(self) -> None:
+        """
+        Clears the temporal probability history.
+        Must be called upon hand tracking loss or session reset to prevent
+        blending predictions across different hand instances.
+        """
+        self._prob_history.clear()
+
     def predict_logits(self, features_tensor: torch.Tensor) -> torch.Tensor:
         """
         Runs the underlying model to return raw, unnormalized logits.
@@ -100,12 +116,19 @@ class ASLInferenceEngine:
         with torch.no_grad():
             return self.model(features_tensor)
 
-    def predict(self, features: Union[np.ndarray, list, torch.Tensor]) -> InferenceResult:
+    def predict(
+        self,
+        features: Union[np.ndarray, list, torch.Tensor],
+        raw_only: bool = False
+    ) -> InferenceResult:
         """
         Executes inference on a single 63-dimensional normalized landmark vector.
+        Applies temporal probability smoothing across a rolling 3-frame window
+        to reject single-frame flicker and stabilize confidence without lag.
 
         Args:
             features: 63-element feature vector (array, list, or tensor).
+            raw_only: If True, bypasses temporal probability smoothing (returns raw single frame).
 
         Returns:
             InferenceResult with predicted label, index, confidence, probabilities, and logits.
@@ -135,17 +158,31 @@ class ASLInferenceEngine:
             logits = self.model(feat_tensor)
             probs = torch.softmax(logits, dim=1)
 
+        raw_probs_np = probs[0].cpu().numpy()
+        logits_np = logits[0].cpu().numpy()
+
+        # Apply 3-frame moving-average probability smoothing
+        if self.enable_smoothing and not raw_only and self.smoothing_window > 1:
+            self._prob_history.append(raw_probs_np)
+            smoothed_probs = np.mean(self._prob_history, axis=0)
+            # Ensure strict sum-to-1 normalization against float roundoff
+            prob_sum = smoothed_probs.sum()
+            if prob_sum > 0:
+                smoothed_probs = smoothed_probs / prob_sum
+            pred_idx = int(np.argmax(smoothed_probs))
+            confidence = float(smoothed_probs[pred_idx])
+            final_probs = smoothed_probs
+        else:
             pred_idx = int(torch.argmax(logits, dim=1).item())
-            confidence = float(probs[0, pred_idx].item())
+            confidence = float(raw_probs_np[pred_idx])
+            final_probs = raw_probs_np
 
         pred_label = get_semantic_label(pred_idx)
-        probs_np = probs[0].cpu().numpy()
-        logits_np = logits[0].cpu().numpy()
 
         return InferenceResult(
             label=pred_label,
             class_index=pred_idx,
             confidence=confidence,
-            probabilities=probs_np,
+            probabilities=final_probs,
             logits=logits_np
         )
