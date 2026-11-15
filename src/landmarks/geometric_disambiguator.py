@@ -207,13 +207,13 @@ class ASLGeometricDisambiguator:
             # Check K: in K, thumb is upright between index and middle, and middle points slightly forward
             thumb_in_middle = geo.dist(4, 9) < 0.45 or geo.dist(4, 10) < 0.45
             if current_label == "K" and thumb_in_middle:
-                return "K", max(confidence, 0.85), "GEOM_K (Thumb between index and middle)"
+                return "K", confidence, "GEOM_K (Thumb between index and middle)"
 
             # Spread ratio >= 1.6 indicates clear V shape; < 1.4 indicates U touching/parallel
             if spread_ratio >= 1.55 or tip_spread >= 0.36:
-                return "V", max(confidence, 0.88), f"GEOM_V (Spread ratio: {spread_ratio:.2f})"
+                return "V", confidence, f"GEOM_V (Spread ratio: {spread_ratio:.2f})"
             elif spread_ratio < 1.35 or tip_spread < 0.28:
-                return "U", max(confidence, 0.88), f"GEOM_U (Parallel ratio: {spread_ratio:.2f})"
+                return "U", confidence, f"GEOM_U (Parallel ratio: {spread_ratio:.2f})"
 
         return None
 
@@ -246,18 +246,18 @@ class ASLGeometricDisambiguator:
         # Thumb tip is close to middle MCP or ring MCP in height, fingers curled down on top of it
         finger_tips_mcp_dist = (geo.dist(8, 5) + geo.dist(12, 9) + geo.dist(16, 13) + geo.dist(20, 17)) / 4.0
         if current_label == "E" and finger_tips_mcp_dist < 0.40:
-            return "E", max(confidence, 0.85), "GEOM_E (All tips curled on thumb)"
+            return "E", confidence, "GEOM_E (All tips curled on thumb)"
 
         # Check A: Thumb tip is extended vertically along the side of index MCP/PIP
         thumb_tip_upright = geo.thumb_tip[1] < geo.index_mcp[1] or d_index < 0.35
         if current_label == "A" and proj_scalar < 0.15 and thumb_tip_upright:
-            return "A", max(confidence, 0.88), f"GEOM_A (Thumb lateral to index: {proj_scalar:.2f})"
+            return "A", confidence, f"GEOM_A (Thumb lateral to index: {proj_scalar:.2f})"
 
         # Check S: Thumb crossed horizontally over the front of the fingers
         # Proj scalar is typically between 0.30 and 0.70 (over middle and ring)
         if current_label == "S":
             if 0.25 <= proj_scalar <= 0.75:
-                return "S", max(confidence, 0.85), f"GEOM_S (Thumb crossing knuckles: {proj_scalar:.2f})"
+                return "S", confidence, f"GEOM_S (Thumb crossing knuckles: {proj_scalar:.2f})"
 
         # Disambiguate M vs N vs T
         # T: Thumb between index and middle (proj_scalar < 0.35)
@@ -265,11 +265,11 @@ class ASLGeometricDisambiguator:
         # M: Thumb between ring and pinky (proj_scalar > 0.65)
         if current_label in ("M", "N", "T"):
             if proj_scalar < 0.35:
-                return "T", max(confidence, 0.85), f"GEOM_T (Thumb at index-middle: {proj_scalar:.2f})"
+                return "T", confidence, f"GEOM_T (Thumb at index-middle: {proj_scalar:.2f})"
             elif proj_scalar > 0.65:
-                return "M", max(confidence, 0.85), f"GEOM_M (Thumb at ring-pinky: {proj_scalar:.2f})"
+                return "M", confidence, f"GEOM_M (Thumb at ring-pinky: {proj_scalar:.2f})"
             else:
-                return "N", max(confidence, 0.85), f"GEOM_N (Thumb at middle-ring: {proj_scalar:.2f})"
+                return "N", confidence, f"GEOM_N (Thumb at middle-ring: {proj_scalar:.2f})"
 
         return None
 
@@ -291,9 +291,9 @@ class ASLGeometricDisambiguator:
         # F: 3 fingers upright, index and thumb touching
         if middle_ext and ring_ext and pinky_ext:
             if index_thumb_dist < 0.35 or not index_ext:
-                return "F", max(confidence, 0.90), f"GEOM_F (Index-thumb loop dist: {index_thumb_dist:.2f})"
+                return "F", confidence, f"GEOM_F (Index-thumb loop dist: {index_thumb_dist:.2f})"
             elif index_ext and index_thumb_dist >= 0.40:
-                return "B", max(confidence, 0.88), f"GEOM_B (Index upright, dist: {index_thumb_dist:.2f})"
+                return "B", confidence, f"GEOM_B (Index upright, dist: {index_thumb_dist:.2f})"
 
         return None
 
@@ -319,9 +319,9 @@ class ASLGeometricDisambiguator:
 
             # X has hooked index: extended past MCP or forward, but curled significantly
             if (0.35 <= index_curl <= 0.80) and (index_tip_dist > index_mcp_dist * 0.85):
-                return "X", max(confidence, 0.88), f"GEOM_X (Index hooked curl ratio: {index_curl:.2f})"
+                return "X", confidence, f"GEOM_X (Index hooked curl ratio: {index_curl:.2f})"
             elif index_curl > 0.84 and index_tip_dist > index_mcp_dist * 1.3:
-                return "D", max(confidence, 0.90), f"GEOM_D (Index straight: {index_curl:.2f})"
+                return "D", confidence, f"GEOM_D (Index straight: {index_curl:.2f})"
 
         return None
 
@@ -338,9 +338,9 @@ class ASLGeometricDisambiguator:
 
         if index_ext and ring_curled and pinky_curled:
             if middle_ext:
-                return "H", max(confidence, 0.88), "GEOM_H (Index and Middle extended)"
+                return "H", confidence, "GEOM_H (Index and Middle extended)"
             else:
-                return "G", max(confidence, 0.88), "GEOM_G (Index extended, Middle curled)"
+                return "G", confidence, "GEOM_G (Index extended, Middle curled)"
 
         return None
 
@@ -361,9 +361,9 @@ class ASLGeometricDisambiguator:
 
             if ring_curled and pinky_curled and index_ext:
                 if middle_ext or current_label in ("P", "K"):
-                    return "P", max(confidence, 0.88), "GEOM_P (Downward K handshape)"
+                    return "P", confidence, "GEOM_P (Downward K handshape)"
                 elif not middle_ext or current_label in ("Q", "G"):
-                    return "Q", max(confidence, 0.88), "GEOM_Q (Downward G handshape)"
+                    return "Q", confidence, "GEOM_Q (Downward G handshape)"
 
         return None
 
@@ -382,6 +382,6 @@ class ASLGeometricDisambiguator:
         if thumb_ext and pinky_ext and index_curled and middle_curled and ring_curled:
             span = geo.dist(4, 20)
             if span >= 0.85:
-                return "Y", max(confidence, 0.90), f"GEOM_Y (Shaka thumb-pinky span: {span:.2f})"
+                return "Y", confidence, f"GEOM_Y (Shaka thumb-pinky span: {span:.2f})"
 
         return None

@@ -97,7 +97,7 @@ def test_v_vs_u_disambiguation():
     # Model initially confused, predicts U
     label, conf, rule = disambiguator.disambiguate("U", 0.52, dummy_probs, hand_v)
     assert label == "V"
-    assert conf >= 0.85
+    assert conf == pytest.approx(0.52)
     assert "GEOM_V" in rule
 
     # 2. Synthesize 'U': Index tip and middle tip parallel / touching
@@ -111,7 +111,7 @@ def test_v_vs_u_disambiguation():
     )
     label, conf, rule = disambiguator.disambiguate("V", 0.55, dummy_probs, hand_u)
     assert label == "U"
-    assert conf >= 0.85
+    assert conf == pytest.approx(0.55)
     assert "GEOM_U" in rule
 
 

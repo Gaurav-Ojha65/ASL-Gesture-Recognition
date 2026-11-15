@@ -237,7 +237,7 @@ class ASLRealTimePipeline:
         self,
         checkpoint_path: str = "models/asl_landmark_mlp_best.pt",
         task_model_path: str = "hand_landmarker.task",
-        dwell_duration: float = 0.40,
+        dwell_duration: float = 0.60,
         release_duration: float = 0.25,
         min_confidence: float = 0.70,
         detector: Optional[vision.HandLandmarker] = None,
@@ -247,13 +247,13 @@ class ASLRealTimePipeline:
         enable_speech: bool = True,
         speech_engine: Optional[SpeechEngine] = None,
         smoothing_window: int = 3,
-        enable_disambiguation: bool = True,
+        enable_disambiguation: bool = False,
     ):
         """
         Args:
             checkpoint_path: Path to PyTorch model checkpoint.
             task_model_path: Path to MediaPipe hand_landmarker.task.
-            dwell_duration: Dwell confirmation duration in seconds (default: 0.40).
+            dwell_duration: Dwell confirmation duration in seconds (default: 0.60).
             release_duration: Sustained no-hand duration before re-arming in seconds (default: 0.25).
             min_confidence: Minimum prediction probability threshold (default: 0.70).
             detector: Optional pre-initialized MediaPipe HandLandmarker (useful for testing/mocking).
@@ -263,7 +263,7 @@ class ASLRealTimePipeline:
             enable_speech: Whether to enable text-to-speech audio synthesis (default: True).
             speech_engine: Optional pre-initialized SpeechEngine.
             smoothing_window: Moving average smoothing window size for prediction probabilities (default: 3).
-            enable_disambiguation: Whether to enable anatomical geometric disambiguation (default: True).
+            enable_disambiguation: Whether to enable anatomical geometric disambiguation (default: False).
         """
         self.checkpoint_path = checkpoint_path
         self.task_model_path = task_model_path
@@ -740,7 +740,7 @@ def run_app(
     camera_index: int = 0,
     checkpoint_path: str = "models/asl_landmark_mlp_best.pt",
     task_model_path: str = "hand_landmarker.task",
-    dwell_duration: float = 0.40,
+    dwell_duration: float = 0.60,
     release_duration: float = 0.25,
     min_confidence: float = 0.70,
     mirror_feed: bool = True,
@@ -749,6 +749,7 @@ def run_app(
     diagnostics_dir: str = "reports/live_diagnostics",
     enable_dynamic: bool = True,
     enable_speech: bool = True,
+    enable_disambiguation: bool = False,
 ) -> int:
     """
     Main application runner.
@@ -757,11 +758,12 @@ def run_app(
     Returns 0 on clean exit, non-zero on startup or camera failure.
 
     Args:
-        enable_diagnostics: When True, writes a per-session CSV under diagnostics_dir.
-                            Disabled by default. Does NOT capture or store video/images.
-        diagnostics_dir:    Directory for diagnostic CSVs (default: reports/live_diagnostics).
-        enable_dynamic:     When True, enables kinematic trajectory recognition for dynamic J and Z.
-        enable_speech:      When True, enables asynchronous text-to-speech audio synthesis.
+        enable_diagnostics:    When True, writes a per-session CSV under diagnostics_dir.
+                               Disabled by default. Does NOT capture or store video/images.
+        diagnostics_dir:       Directory for diagnostic CSVs (default: reports/live_diagnostics).
+        enable_dynamic:        When True, enables kinematic trajectory recognition for dynamic J and Z.
+        enable_speech:         When True, enables asynchronous text-to-speech audio synthesis.
+        enable_disambiguation: When True, enables fine-grained geometric disambiguation (disabled by default).
     """
     from src.landmarks.labels import SEMANTIC_CLASSES
 
@@ -777,6 +779,7 @@ def run_app(
     print(f"Mirror feed:        {mirror_feed}")
     print(f"Dynamic J/Z:        {'ENABLED' if enable_dynamic else 'disabled'}")
     print(f"Speech (TTS):       {'ENABLED' if enable_speech else 'disabled'}")
+    print(f"Geometric rules:    {'ENABLED' if enable_disambiguation else 'disabled'}")
     print(f"Diagnostics:        {'ENABLED' if enable_diagnostics else 'disabled'}")
     print("=" * 70)
 
@@ -790,7 +793,8 @@ def run_app(
             min_confidence=min_confidence,
             mirror_feed=mirror_feed,
             enable_dynamic=enable_dynamic,
-            enable_speech=enable_speech
+            enable_speech=enable_speech,
+            enable_disambiguation=enable_disambiguation,
         )
     except FileNotFoundError as e:
         print(f"Startup Error: Missing required file: {e}")
@@ -960,6 +964,8 @@ def main():
                         help="Disable dynamic J and Z trajectory gesture recognition")
     parser.add_argument("--no-speech", action="store_true",
                         help="Disable text-to-speech audio synthesis")
+    parser.add_argument("--enable-geometric", action="store_true",
+                        help="Enable anatomical geometric disambiguation rules (disabled by default)")
 
     args = parser.parse_args()
 
@@ -976,6 +982,7 @@ def main():
         diagnostics_dir=args.diagnostics_dir,
         enable_dynamic=not args.no_dynamic,
         enable_speech=not args.no_speech,
+        enable_disambiguation=args.enable_geometric,
     )
     sys.exit(exit_code)
 

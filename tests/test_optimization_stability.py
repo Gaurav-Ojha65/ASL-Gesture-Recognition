@@ -102,28 +102,28 @@ def test_reset_smoothing_prevents_stale_predictions_across_hand_loss():
     assert len(engine._prob_history) == 1
 
 
-def test_stable_prediction_commits_at_0_40s_dwell():
-    """Verify that a stable hand gesture commits at exactly 0.40s dwell duration."""
-    sm = GestureStateMachine(StateMachineConfig())  # Default dwell_duration is 0.40s
-    assert sm.config.dwell_duration == 0.40
+def test_stable_prediction_commits_at_0_60s_dwell():
+    """Verify that a stable hand gesture commits at exactly 0.60s dwell duration."""
+    sm = GestureStateMachine(StateMachineConfig())  # Default dwell_duration is 0.60s
+    assert sm.config.dwell_duration == 0.60
 
     # t=0.00: candidate established
     assert sm.process_observation('A', 0.85, True, 0.00) is None
     assert sm.is_dwelling is True
     assert sm.current_candidate == 'A'
 
-    # t=0.20: halfway through dwell; no commit yet
-    assert sm.process_observation('A', 0.85, True, 0.20) is None
+    # t=0.30: halfway through dwell; no commit yet
+    assert sm.process_observation('A', 0.85, True, 0.30) is None
 
-    # t=0.39: just before dwell threshold; no commit
-    assert sm.process_observation('A', 0.85, True, 0.39) is None
+    # t=0.59: just before dwell threshold; no commit
+    assert sm.process_observation('A', 0.85, True, 0.59) is None
 
-    # t=0.40: dwell completed! Exactly commits 'A'
-    event = sm.process_observation('A', 0.85, True, 0.40)
+    # t=0.60: dwell completed! Exactly commits 'A'
+    event = sm.process_observation('A', 0.85, True, 0.60)
     assert event is not None
     assert isinstance(event, CommitEvent)
     assert event.label == 'A'
-    assert event.dwell_time >= 0.40
+    assert event.dwell_time >= 0.60
     assert sm.is_latched is True
 
 
@@ -196,7 +196,7 @@ def test_pipeline_reset_smoothing_on_no_hand(monkeypatch):
     from src.realtime.inference import ASLInferenceEngine
 
     pipeline = ASLRealTimePipeline(enable_speech=False, enable_dynamic=False)
-    assert pipeline.sm_config.dwell_duration == 0.40
+    assert pipeline.sm_config.dwell_duration == 0.60
 
     # Simulate active prediction adding items to history
     feat = np.ones(63, dtype=np.float32) * 0.1
