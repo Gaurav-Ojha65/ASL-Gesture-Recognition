@@ -4,7 +4,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.14.0%20(CPU%2FCUDA)-ee4c2c.svg)](https://pytorch.org/)
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-1.0.1-brightgreen.svg)](https://developers.google.com/mediapipe)
 [![OpenCV](https://img.shields.io/badge/OpenCV-5.0.0-5C3EE8.svg)](https://opencv.org/)
-[![Tests](https://img.shields.io/badge/Tests-124%20passed%20(100%25)-success.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-148%20passed%20(100%25)-success.svg)](tests/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 An end-to-end, production-oriented Computer Vision system that converts American Sign Language (ASL) fingerspelling and dynamic gestures into synthesized speech in real-time.
@@ -120,6 +120,7 @@ ASL-Gesture-Recognition/
 ├── src/
 │   ├── benchmark/                  # Sign Language MNIST CNN baseline module
 │   ├── landmarks/
+│   │   ├── geometric_disambiguator.py # Invariant anatomical geometric rules (optional)
 │   │   ├── labels.py               # 28 semantic class mappings (A-Z, SPACE, DELETE)
 │   │   ├── normalizer.py           # Single-hand 63-D invariant normalization
 │   │   └── two_hand.py             # Two-hand 133-D feature representation & prototype
@@ -134,8 +135,10 @@ ASL-Gesture-Recognition/
 │       └── text_buffer.py          # Word construction and editing buffer
 ├── tests/
 │   ├── test_dynamic_gestures.py    # Unit tests for J/Z trajectories and kinematics
+│   ├── test_geometric_disambiguation.py # Geometric rule validation and dynamic Z tests
 │   ├── test_mlp.py                 # PyTorch model architecture tests
 │   ├── test_normalizer.py          # Geometric invariance unit tests
+│   ├── test_optimization_stability.py # Moving average smoothing & stability tests
 │   ├── test_realtime_inference.py  # Inference engine and probability tests
 │   ├── test_realtime_pipeline.py   # Integrated pipeline execution tests
 │   ├── test_realtime_state_machine.py # FSM dwell and hysteresis timing tests
@@ -218,6 +221,7 @@ python src/realtime/app.py
 | `--min-conf` | `0.70` | Minimum softmax confidence threshold. |
 | `--no-dynamic` | `False` | Disables dynamic J/Z gesture recognition. |
 | `--no-speech` | `False` | Disables text-to-speech audio synthesis. |
+| `--enable-geometric` | `False` | Enables fine-grained anatomical geometric disambiguation rules. |
 | `--no-mirror` | `False` | Disables horizontal mirroring of webcam display. |
 | `--diagnostics` | `False` | Enables frame-by-frame telemetry logging to CSV. |
 | `--max-frames` | `None` | Optional limit on processed frames (useful for headless testing). |
@@ -225,8 +229,10 @@ python src/realtime/app.py
 ### Keyboard Controls & HUD Guide
 
 - **`V`**: Toggle Text-to-Speech **ON / OFF** in real time.
-- **`C`**: Clear text buffer.
-- **`Q` or `ESC`**: Gracefully shut down application and background worker threads.
+- **`SPACE`**: Complete current word, append space, and trigger speech for the finished word.
+- **`BACKSPACE` / `DELETE`**: Remove the last character from the text buffer.
+- **`C`**: Clear entire text buffer.
+- **`Q` or `ESC`**: Gracefully shut down application, release camera, and terminate background threads.
 
 ---
 
@@ -257,7 +263,7 @@ python scripts/evaluate_robustness.py
 Outputs performance benchmarks and environmental stress tests across brightness, noise, motion blur, and occlusions to `reports/robustness/`.
 
 ### 5. Two-Hand Feature Representation (Feasibility Prototype)
-Implemented in [`src/landmarks/two_hand.py`](file:///d:/ASL_cv/ASL-Gesture-Recognition/src/landmarks/two_hand.py):
+Implemented in [`src/landmarks/two_hand.py`](src/landmarks/two_hand.py):
 - Extracts up to two hands with deterministic Left/Right sorting.
 - Produces a **133-dimensional** vector (63 left + 63 right + 5 inter-hand spatial + 2 validity masks).
 - Feature normalization takes **0.028 ms** on CPU.
@@ -289,9 +295,9 @@ python -m pytest tests -v
 ```
 
 ### Test Suite Summary
-- **Total Tests:** 124
-- **Passed:** **124 passed (100%)** in ~6.5 seconds.
-- **Failures:** 0. All subsystems—normalization, PyTorch inference, temporal FSM, text buffering, offline speech synthesis, dynamic J/Z trajectory kinematics, robustness transforms, and two-hand feature extraction—pass automated regression verification.
+- **Total Tests:** 148
+- **Passed:** **148 passed (100%)** in ~13.5 seconds.
+- **Failures:** 0. All subsystems—normalization, PyTorch inference, temporal FSM, text buffering, offline speech synthesis, dynamic J/Z trajectory kinematics, robustness transforms, two-hand feature extraction, geometric disambiguation, and optimization stability—pass automated regression verification.
 
 ---
 
