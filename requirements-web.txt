@@ -1,0 +1,17 @@
+# ==============================================================================
+# Browser-Based ASL Gesture Recognition - Web Dependencies
+# Compatible with local execution and Hugging Face Spaces
+# ==============================================================================
+
+# Core Machine Learning & Perception
+torch>=2.0.0
+mediapipe>=1.0.0
+opencv-python>=4.8.0
+
+# Scientific & Numerical
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Gradio Web Framework
+gradio>=6.0.0
+
