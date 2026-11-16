@@ -13,7 +13,7 @@ function Card({
   className?: string;
 }) {
   return (
-    <div className={`bg-slate-900 border border-slate-800 rounded-2xl p-6 ${className}`}>
+    <div className={`bg-surface border border-line rounded-card p-6 sm:p-8 ${className}`}>
       {children}
     </div>
   );
@@ -27,8 +27,8 @@ function CardTitle({
   children: React.ReactNode;
 }) {
   return (
-    <h2 className="flex items-center gap-2 text-slate-100 text-lg font-semibold mb-5">
-      <span className="text-violet-500">{icon}</span>
+    <h2 className="flex items-center gap-2 text-ink text-lg font-semibold mb-5">
+      <span className="text-brand">{icon}</span>
       {children}
     </h2>
   );
@@ -36,9 +36,9 @@ function CardTitle({
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between items-center py-2 border-b border-slate-800 last:border-0">
-      <span className="text-slate-400 text-sm">{label}</span>
-      <span className="text-slate-100 text-sm font-mono">{value}</span>
+    <div className="flex justify-between items-center py-2 border-b border-line last:border-0">
+      <span className="text-muted text-sm">{label}</span>
+      <span className="text-ink text-sm font-mono">{value}</span>
     </div>
   );
 }
@@ -59,17 +59,17 @@ const PIPELINE_STEPS = [
 
 function PipelineFlow() {
   return (
-    <div className="flex flex-col md:flex-row flex-wrap items-center gap-1 justify-center">
+    <div className="flex flex-col md:flex-row flex-wrap items-center gap-2 justify-center">
       {PIPELINE_STEPS.map((step, i) => (
-        <div key={step.label} className="flex flex-col md:flex-row items-center gap-1">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-center min-w-[120px]">
-            <div className="text-slate-100 text-xs font-semibold leading-tight">
+        <div key={step.label} className="flex flex-col md:flex-row items-center gap-2">
+          <div className="bg-track border border-line rounded-xl px-3 py-2 text-center min-w-[124px]">
+            <div className="text-ink text-xs font-semibold leading-tight">
               {step.label}
             </div>
-            <div className="text-slate-500 text-[10px] mt-0.5">{step.sub}</div>
+            <div className="text-muted text-[10px] mt-0.5">{step.sub}</div>
           </div>
           {i < PIPELINE_STEPS.length - 1 && (
-            <span className="text-violet-500 text-lg font-bold select-none md:rotate-0 rotate-90">
+            <span className="text-brand text-lg font-bold select-none md:rotate-0 rotate-90">
               →
             </span>
           )}
@@ -82,10 +82,10 @@ function PipelineFlow() {
 // ─── MLP Architecture ─────────────────────────────────────────────────────────
 
 const LAYERS = [
-  { name: 'Input', size: 63, color: 'bg-violet-700' },
-  { name: 'Hidden 1', size: 128, color: 'bg-violet-600' },
-  { name: 'Hidden 2', size: 64, color: 'bg-fuchsia-600' },
-  { name: 'Output', size: 28, color: 'bg-cyan-500' },
+  { name: 'Input', size: 63, color: 'bg-sand' },
+  { name: 'Hidden 1', size: 128, color: 'bg-brand-soft' },
+  { name: 'Hidden 2', size: 64, color: 'bg-brand' },
+  { name: 'Output', size: 28, color: 'bg-coral-text' },
 ];
 
 function MlpDiagram({ paramCount }: { paramCount?: number }) {
@@ -100,25 +100,25 @@ function MlpDiagram({ paramCount }: { paramCount?: number }) {
           const h = minH + ((maxH - minH) * heightPct) / 100;
           return (
             <div key={layer.name} className="flex flex-col items-center gap-2">
-              <span className="text-slate-400 text-xs font-mono">{layer.size}</span>
+              <span className="text-muted text-xs font-mono">{layer.size}</span>
               <div
-                className={`w-10 rounded-t-lg ${layer.color} opacity-90`}
+                className={`w-10 rounded-t-lg ${layer.color}`}
                 style={{ height: `${h}px` }}
               />
-              <span className="text-slate-300 text-xs text-center">{layer.name}</span>
+              <span className="text-ink text-xs font-medium text-center">{layer.name}</span>
             </div>
           );
         })}
       </div>
-      <div className="mt-2 text-center text-slate-400 text-xs">
+      <div className="mt-4 text-center text-muted text-xs">
         Total parameters:{' '}
-        <span className="text-cyan-400 font-mono font-semibold">
+        <span className="text-ink font-mono font-bold">
           {paramCount !== undefined ? paramCount.toLocaleString() : '18,524'}
         </span>{' '}
         {paramCount === undefined && (
-          <span className="text-slate-500">(hardcoded fallback — backend offline)</span>
+          <span className="text-muted">(hardcoded fallback — backend offline)</span>
         )}
-        <span className="text-slate-400 text-[11px] block mt-0.5">
+        <span className="text-muted text-[11px] block mt-0.5">
           (Note: Total of 18,524 parameters includes Linear weights, biases, and BatchNorm layers)
         </span>
       </div>
@@ -135,9 +135,9 @@ function MlpDiagram({ paramCount }: { paramCount?: number }) {
 // ─── Gesture State Machine ────────────────────────────────────────────────────
 
 function GestureStateMachine({ sysInfo }: { sysInfo: SystemInfoResponse | null }) {
-  const dwell = sysInfo ? `${sysInfo.dwell_duration.toFixed(2)}s` : '0.60s';
-  const release = sysInfo ? `${sysInfo.release_duration.toFixed(2)}s` : '0.25s';
-  const minConf = sysInfo ? sysInfo.min_confidence.toFixed(2) : '0.70';
+  const dwell = sysInfo ? `${sysInfo.dwell_duration.toFixed(2)}s` : '–';
+  const release = sysInfo ? `${sysInfo.release_duration.toFixed(2)}s` : '–';
+  const minConf = sysInfo ? sysInfo.min_confidence.toFixed(2) : '–';
 
   const params = [
     { label: 'Dwell duration', value: dwell, desc: 'Gesture must be stable before commit' },
@@ -151,29 +151,29 @@ function GestureStateMachine({ sysInfo }: { sysInfo: SystemInfoResponse | null }
         {params.map(({ label, value, desc }) => (
           <div
             key={label}
-            className="bg-slate-800 border border-slate-700 rounded-xl p-4 text-center"
+            className="bg-track border border-line rounded-xl p-4 text-center"
           >
-            <div className="text-cyan-400 font-mono text-2xl font-bold mb-1">{value}</div>
-            <div className="text-slate-200 text-sm font-semibold mb-1">{label}</div>
-            <div className="text-slate-500 text-xs">{desc}</div>
+            <div className="text-ink font-mono text-2xl font-bold mb-1">{value}</div>
+            <div className="text-ink text-sm font-semibold mb-1">{label}</div>
+            <div className="text-muted text-xs">{desc}</div>
           </div>
         ))}
       </div>
-      <div className="bg-slate-800 rounded-xl p-4 text-sm text-slate-300 space-y-2">
+      <div className="bg-track/50 border border-line rounded-xl p-4 text-sm text-ink space-y-2">
         <p>
-          <span className="text-violet-400 font-semibold">Commit:</span> A predicted class must
-          remain the top prediction continuously for <span className="text-cyan-400">{dwell}</span>{' '}
-          before it is committed to the text buffer.
+          <span className="text-brand font-semibold">Commit:</span> A predicted class must
+          remain the top prediction continuously for{' '}
+          <span className="font-mono font-bold text-brand">{dwell}</span> before it is committed to
+          the text buffer.
         </p>
         <p>
-          <span className="text-violet-400 font-semibold">Hold debounce:</span> Once committed, the
+          <span className="text-brand font-semibold">Hold debounce:</span> Once committed, the
           same pose does not re-commit while the hand stays in the same position.
         </p>
         <p>
-          <span className="text-violet-400 font-semibold">Release:</span> The dwell timer resets
-          only after{' '}
-          <span className="text-cyan-400">{release}</span> of confirmed hand absence or class
-          change.
+          <span className="text-brand font-semibold">Release:</span> The dwell timer resets only
+          after <span className="font-mono font-bold text-brand">{release}</span> of confirmed hand
+          absence or class change.
         </p>
       </div>
     </div>
@@ -197,20 +197,20 @@ function SignClassGrid() {
           key={cls}
           className={`relative flex flex-col items-center justify-center rounded-lg p-2 border text-center ${
             DYNAMIC.has(cls)
-              ? 'border-amber-500 bg-amber-900/20'
-              : 'border-slate-700 bg-slate-800'
+              ? 'border-coral-line bg-coral-soft'
+              : 'border-line bg-track'
           }`}
         >
           <span
             className={`font-bold text-sm ${
-              DYNAMIC.has(cls) ? 'text-amber-300' : 'text-slate-100'
+              DYNAMIC.has(cls) ? 'text-coral-text' : 'text-ink'
             }`}
           >
             {cls}
           </span>
           {DYNAMIC.has(cls) && (
-            <span className="text-[9px] text-amber-400 font-semibold mt-0.5 leading-tight">
-              dynamic
+            <span className="text-[9px] text-coral-text font-semibold uppercase tracking-wider mt-0.5 leading-tight">
+              motion
             </span>
           )}
         </div>
@@ -224,10 +224,12 @@ function SignClassGrid() {
 function MnistBenchmark() {
   return (
     <div className="space-y-3">
-      <div className="bg-amber-900/20 border border-amber-700 rounded-xl p-3 text-amber-300 text-sm font-semibold flex items-start gap-2">
+      <div className="bg-coral-soft border border-coral-line rounded-xl p-4 text-coral-text text-sm font-medium flex items-start gap-2">
         <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-        This CNN is a <strong>separate model</strong> evaluated on the Sign Language MNIST dataset.
-        It is NOT used for live webcam recognition.
+        <div>
+          This CNN is a <strong>separate model</strong> evaluated on the Sign Language MNIST dataset.
+          It is NOT used for live webcam recognition.
+        </div>
       </div>
       <div className="grid sm:grid-cols-2 gap-2">
         <InfoRow label="Model type" value="CNN (Sign Language MNIST)" />
@@ -237,7 +239,7 @@ function MnistBenchmark() {
         <InfoRow label="Classes" value="24 (excludes J, Z)" />
         <InfoRow label="Purpose" value="Benchmark / research only" />
       </div>
-      <p className="text-slate-500 text-xs">
+      <p className="text-muted text-xs">
         The live webcam model is a landmark-based MLP (63-D feature vectors from MediaPipe).
         These two models have different inputs, architectures, and evaluation datasets — do not
         compare their metrics directly.
@@ -270,20 +272,31 @@ const LIMITATIONS = [
 ];
 
 function LimitationsCard() {
-  const severityColors: Record<string, string> = {
-    high: 'text-red-400 border-red-700 bg-red-900/20',
-    medium: 'text-amber-400 border-amber-700 bg-amber-900/20',
-    info: 'text-slate-400 border-slate-700 bg-slate-800',
-  };
   return (
     <div className="space-y-3">
       {LIMITATIONS.map(({ sign, issue, severity }) => (
         <div
           key={sign}
-          className={`border rounded-xl p-4 ${severityColors[severity]}`}
+          className={`border rounded-xl p-4 ${
+            severity === 'high'
+              ? 'bg-coral-soft border-coral-line text-coral-text'
+              : 'bg-track border-line text-ink'
+          }`}
         >
-          <div className="font-semibold text-sm mb-1">{sign}</div>
-          <div className="text-xs opacity-80">{issue}</div>
+          <div
+            className={`font-semibold text-sm mb-1 ${
+              severity === 'high' ? 'text-coral-text' : 'text-ink'
+            }`}
+          >
+            {sign}
+          </div>
+          <div
+            className={`text-xs ${
+              severity === 'high' ? 'text-coral-text/90' : 'text-muted'
+            }`}
+          >
+            {issue}
+          </div>
         </div>
       ))}
     </div>
@@ -302,15 +315,15 @@ export function ModelInsights() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-bg text-ink">
+      <div className="max-w-[1240px] mx-auto px-5 md:px-10 py-10 flex flex-col gap-10">
         {/* Page heading */}
-        <div className="mb-10">
-          <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent mb-2">
-            Model Insights
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-ink mb-2">
+            How it works
           </h1>
-          <p className="text-slate-400 text-base">
-            How ASL Gesture Studio works — from browser frame to committed text.
+          <p className="text-muted text-base">
+            From browser camera frame to committed text — architecture, parameters, and design principles.
           </p>
         </div>
 
@@ -337,8 +350,8 @@ export function ModelInsights() {
           {/* 4. Sign Class Reference */}
           <Card>
             <CardTitle icon={<BookOpen size={18} />}>Sign Class Reference</CardTitle>
-            <p className="text-slate-400 text-sm mb-4">
-              All 28 output classes. Amber badges indicate signs that require motion and may be
+            <p className="text-muted text-sm mb-4">
+              All 28 output classes. Coral badges indicate signs that require motion and may be
               less reliable with static landmark analysis.
             </p>
             <SignClassGrid />
