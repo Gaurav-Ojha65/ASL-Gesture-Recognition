@@ -71,6 +71,7 @@ describe('Frontend Component Tests', () => {
       fsm_candidate: 'A',
       fsm_is_dwelling: true,
       fsm_dwell_time: 0.45,
+      dwell_progress: 0.75,
       committed_label: null,
       text_buffer: '',
       speech_token: null,
