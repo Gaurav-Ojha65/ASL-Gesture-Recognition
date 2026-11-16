@@ -413,10 +413,11 @@ def test_spa_static_serving_and_fallback(tmp_path: Path):
         assert resp_missing_api.status_code == 404
         assert "SPA Root" not in resp_missing_api.text
 
-        # F. JS asset returns application/javascript MIME type
+        # F. JS asset returns valid javascript MIME type (application/javascript or text/javascript)
         resp_js = client.get("/assets/index.js")
         assert resp_js.status_code == 200
-        assert "application/javascript" in resp_js.headers["content-type"]
+        js_media_type = resp_js.headers["content-type"].split(";")[0].strip()
+        assert js_media_type in ("application/javascript", "text/javascript")
         assert "asl studio bundle" in resp_js.text
 
         # G. Missing asset with file extension returns 404, not index.html
