@@ -6,6 +6,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { TextBufferPanel } from '@/components/text-buffer/TextBufferPanel';
 import { RecognitionPanel } from '@/components/recognition/RecognitionPanel';
 import { WebcamPanel } from '@/components/webcam/WebcamPanel';
+import { NotFound } from '@/pages/NotFound';
 import * as webcamHook from '@/hooks/useWebcam';
 
 describe('Frontend Component Tests', () => {
@@ -229,5 +230,19 @@ describe('Frontend Component Tests', () => {
     );
 
     expect(screen.getByText('No hand detected')).toBeInTheDocument();
+  });
+
+  it('NotFound page renders 404 status and Return to Home link', () => {
+    render(
+      <MemoryRouter>
+        <NotFound />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('404')).toBeInTheDocument();
+    expect(screen.getByText('Page not found')).toBeInTheDocument();
+    const homeLink = screen.getByRole('link', { name: /Return to Home/i });
+    expect(homeLink).toBeInTheDocument();
+    expect(homeLink).toHaveAttribute('href', '/');
   });
 });

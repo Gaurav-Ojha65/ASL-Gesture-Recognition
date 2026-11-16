@@ -5,6 +5,7 @@ import { Dashboard } from '@/pages/Dashboard';
 import { LiveTranslator } from '@/pages/LiveTranslator';
 import { ModelInsights } from '@/pages/ModelInsights';
 import { Diagnostics } from '@/pages/Diagnostics';
+import { NotFound } from '@/pages/NotFound';
 import { CameraStatusProvider, useCameraStatus } from '@/context/CameraStatusContext';
 
 const DevStates = import.meta.env.DEV
@@ -37,8 +38,8 @@ function AppShell() {
               }
             />
           )}
-          {/* Catch-all fallback for undefined routes in production */}
-          <Route path="*" element={<Dashboard />} />
+          {/* Catch-all route for unmatched paths */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
 

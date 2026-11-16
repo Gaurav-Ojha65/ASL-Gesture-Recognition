@@ -81,4 +81,3 @@ export function Navbar({ cameraActive = false }: NavBarProps) {
   );
 }
 
-export const Sidebar = Navbar;
