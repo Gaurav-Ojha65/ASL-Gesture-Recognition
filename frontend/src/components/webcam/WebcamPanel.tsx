@@ -23,21 +23,21 @@ function HandIllustration() {
       aria-hidden="true"
     >
       {/* Palm */}
-      <rect x="20" y="56" width="40" height="30" rx="12" stroke="#C9BFAE" strokeWidth="2.5" fill="none" />
+      <rect x="20" y="56" width="40" height="30" rx="12" stroke="var(--color-sand)" strokeWidth="2.5" fill="none" />
       {/* Index finger */}
-      <rect x="22" y="22" width="9" height="36" rx="4.5" stroke="#C9BFAE" strokeWidth="2.5" fill="none" />
+      <rect x="22" y="22" width="9" height="36" rx="4.5" stroke="var(--color-sand)" strokeWidth="2.5" fill="none" />
       {/* Middle finger */}
-      <rect x="34" y="12" width="9" height="46" rx="4.5" stroke="#C9BFAE" strokeWidth="2.5" fill="none" />
+      <rect x="34" y="12" width="9" height="46" rx="4.5" stroke="var(--color-sand)" strokeWidth="2.5" fill="none" />
       {/* Ring finger */}
-      <rect x="46" y="18" width="9" height="40" rx="4.5" stroke="#C9BFAE" strokeWidth="2.5" fill="none" />
+      <rect x="46" y="18" width="9" height="40" rx="4.5" stroke="var(--color-sand)" strokeWidth="2.5" fill="none" />
       {/* Pinky */}
-      <rect x="58" y="28" width="8" height="30" rx="4" stroke="#C9BFAE" strokeWidth="2.5" fill="none" />
+      <rect x="58" y="28" width="8" height="30" rx="4" stroke="var(--color-sand)" strokeWidth="2.5" fill="none" />
       {/* Joints — coral dots */}
-      <circle cx="26.5" cy="40" r="3" fill="#B23E26" />
-      <circle cx="38.5" cy="30" r="3" fill="#B23E26" />
-      <circle cx="50.5" cy="36" r="3" fill="#B23E26" />
-      <circle cx="62" cy="46" r="3" fill="#B23E26" />
-      <circle cx="40" cy="68" r="4" fill="#B23E26" />
+      <circle cx="26.5" cy="40" r="3" fill="var(--color-coral-text)" />
+      <circle cx="38.5" cy="30" r="3" fill="var(--color-coral-text)" />
+      <circle cx="50.5" cy="36" r="3" fill="var(--color-coral-text)" />
+      <circle cx="62" cy="46" r="3" fill="var(--color-coral-text)" />
+      <circle cx="40" cy="68" r="4" fill="var(--color-coral-text)" />
     </svg>
   );
 }
@@ -225,7 +225,7 @@ export function WebcamPanel({ connectionStatus, sendFrame, lastRecognition }: We
                   className="text-sm font-semibold px-6 py-2.5 transition-colors"
                   style={{
                     backgroundColor: 'var(--color-brand)',
-                    color: 'white',
+                    color: 'var(--color-on-brand)',
                     borderRadius: 'var(--radius-button)',
                   }}
                   aria-label="Enable camera"

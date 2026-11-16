@@ -25,6 +25,14 @@ export interface RenderArea {
   contentHeight: number;
 }
 
+/** Canvas colour tokens for 2D landmark overlay */
+export const CANVAS_COLORS = {
+  boneOutline: 'rgba(31, 42, 46, 0.25)',
+  boneFill: 'rgba(255, 255, 255, 0.60)',
+  jointStroke: '#FFFFFF',
+  jointFill: '#B23E26',
+} as const;
+
 export function getContainArea(
   containerWidth: number,
   containerHeight: number,
@@ -90,7 +98,7 @@ export function renderLandmarks(
   ctx.lineCap = 'round';
 
   // Thin dark outline pass for legibility on light backgrounds
-  ctx.strokeStyle = 'rgba(31, 42, 46, 0.25)';
+  ctx.strokeStyle = CANVAS_COLORS.boneOutline;
   ctx.lineWidth = 4 * dpr;
   for (const [a, b] of HAND_CONNECTIONS) {
     const [ax, ay] = lmToPixel(landmarks[a]);
@@ -102,7 +110,7 @@ export function renderLandmarks(
   }
 
   // White fill pass at 60% opacity
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.60)';
+  ctx.strokeStyle = CANVAS_COLORS.boneFill;
   ctx.lineWidth = 2.5 * dpr;
   for (const [a, b] of HAND_CONNECTIONS) {
     const [ax, ay] = lmToPixel(landmarks[a]);
@@ -122,13 +130,13 @@ export function renderLandmarks(
     // White stroke border
     ctx.beginPath();
     ctx.arc(px, py, r + 1 * dpr, 0, Math.PI * 2);
-    ctx.fillStyle = 'white';
+    ctx.fillStyle = CANVAS_COLORS.jointStroke;
     ctx.fill();
 
     // Coral fill
     ctx.beginPath();
     ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fillStyle = '#B23E26';
+    ctx.fillStyle = CANVAS_COLORS.jointFill;
     ctx.fill();
   }
 

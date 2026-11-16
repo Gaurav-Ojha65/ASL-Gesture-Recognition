@@ -185,7 +185,7 @@ export function TextBufferPanel({
             className="btn-sm text-sm font-semibold px-5 transition-colors disabled:opacity-40 disabled:pointer-events-none"
             style={{
               backgroundColor: 'var(--color-brand)',
-              color: 'white',
+              color: 'var(--color-on-brand)',
               borderRadius: 'var(--radius-button)',
             }}
             aria-label="Speak text aloud"
