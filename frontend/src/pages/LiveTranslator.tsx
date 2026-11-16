@@ -35,23 +35,24 @@ export function LiveTranslator() {
   }, []);
 
   return (
-    <div className="p-4 lg:p-6 max-w-[1600px] mx-auto min-h-[calc(100vh-3.5rem)] lg:min-h-screen flex flex-col justify-start">
+    <div className="max-w-[1240px] mx-auto px-5 md:px-10 py-8 min-h-[calc(100vh-3.5rem)] flex flex-col justify-start">
       {/* Page Header */}
-      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-100 tracking-tight">
-            Live ASL Translator
-          </h1>
-          <p className="text-slate-400 text-xs md:text-sm mt-0.5">
-            Real-time hand landmark recognition with temporal hysteresis confirmation
-          </p>
-        </div>
+      <div className="mb-6">
+        <h1
+          className="text-[32px] font-bold leading-tight"
+          style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
+        >
+          Live translator
+        </h1>
+        <p className="text-base mt-1" style={{ color: 'var(--color-muted)' }}>
+          Hold a letter steady in front of your camera and it appears as text.
+        </p>
       </div>
 
-      {/* Responsive Two-Column Layout */}
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch flex-1">
-        {/* Left Column (Webcam Feed & Text Composition) ~70% */}
-        <div className="flex-1 min-w-0 flex flex-col gap-4">
+      {/* Responsive Two-Column Layout (1.9fr / 1fr, stacked on small screens) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.9fr_1fr] gap-6 items-start flex-1">
+        {/* Left Column: Camera Feed & Text Composition */}
+        <div className="flex flex-col gap-6 min-w-0">
           <WebcamPanel
             connectionStatus={ws.connectionStatus}
             sendFrame={ws.sendFrame}
@@ -66,8 +67,8 @@ export function LiveTranslator() {
           />
         </div>
 
-        {/* Right Column (Candidate Gesture, Progress Ring & Telemetry) ~30% */}
-        <div className="lg:w-80 xl:w-96 flex-shrink-0 flex flex-col">
+        {/* Right Column: Now Reading, Other Possibilities, For Best Results */}
+        <div className="flex flex-col gap-6 min-w-0">
           <RecognitionPanel
             recognition={ws.lastRecognition}
             systemInfo={systemInfo}

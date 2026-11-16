@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Trash2, Space, Volume2, VolumeX, Delete, Check } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import type { ClientControlMessage, RecognitionResponse } from '@/types/api';
 
 interface TextBufferPanelProps {
@@ -18,27 +18,14 @@ export function TextBufferPanel({
   connectionStatus,
 }: TextBufferPanelProps) {
   const [copied, setCopied] = useState(false);
-  const [lastCommitEffect, setLastCommitEffect] = useState<string | null>(null);
-
-  // Transient visual feedback for character commit (does NOT accumulate locally)
-  useEffect(() => {
-    if (lastRecognition?.committed_label) {
-      setLastCommitEffect(lastRecognition.committed_label);
-      const timer = setTimeout(() => {
-        setLastCommitEffect(null);
-      }, 700);
-      return () => clearTimeout(timer);
-    }
-  }, [lastRecognition?.committed_label]);
 
   // Browser speech synthesis: speak only discrete speech_token emitted by backend
   useEffect(() => {
     const token = lastRecognition?.speech_token;
     if (!token || !speechEnabled) return;
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
     try {
-      window.speechSynthesis.cancel(); // cancel pending speech
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(token);
       utterance.rate = 0.95;
       utterance.pitch = 1.0;
@@ -55,7 +42,6 @@ export function TextBufferPanel({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback if clipboard API is blocked
       const textArea = document.createElement('textarea');
       textArea.value = textBuffer;
       document.body.appendChild(textArea);
@@ -67,130 +53,149 @@ export function TextBufferPanel({
     }
   }, [textBuffer]);
 
-  const handleSpace = useCallback(() => {
-    sendControl({ type: 'space' });
-  }, [sendControl]);
+  const handleSpace = useCallback(() => sendControl({ type: 'space' }), [sendControl]);
+  const handleDelete = useCallback(() => sendControl({ type: 'delete' }), [sendControl]);
+  const handleClear = useCallback(() => sendControl({ type: 'clear' }), [sendControl]);
 
-  const handleDelete = useCallback(() => {
-    sendControl({ type: 'delete' });
-  }, [sendControl]);
-
-  const handleClear = useCallback(() => {
-    sendControl({ type: 'clear' });
-  }, [sendControl]);
-
-  const handleToggleSpeech = useCallback(() => {
-    sendControl({
-      type: 'speech_pref',
-      speech_enabled: !speechEnabled,
-    });
-  }, [sendControl, speechEnabled]);
+  const handleSpeak = useCallback(() => {
+    if (!textBuffer) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(textBuffer);
+      utterance.rate = 0.9;
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      // ignored
+    }
+  }, [textBuffer]);
 
   const isConnected = connectionStatus === 'connected';
   const wordCount = textBuffer.trim() ? textBuffer.trim().split(/\s+/).length : 0;
   const charCount = textBuffer.length;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50">
-        <div className="flex items-center gap-3">
-          <h2 className="text-slate-100 font-semibold text-sm">Translated Text</h2>
-          {lastCommitEffect && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-cyan-400/20 text-cyan-400 ring-1 ring-cyan-400/40 animate-pulse">
-              + {lastCommitEffect === 'SPACE' ? '␠' : lastCommitEffect === 'DELETE' ? '⌫' : lastCommitEffect}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-xs text-slate-400 font-mono">
-          <span>{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
-          <span>•</span>
-          <span>{charCount} chars</span>
-        </div>
+    <div
+      className="bg-surface border overflow-hidden flex flex-col"
+      style={{ borderColor: 'var(--color-line)', borderRadius: 'var(--radius-card)' }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-5 py-3 border-b"
+        style={{ borderColor: 'var(--color-line)' }}
+      >
+        <span
+          className="text-xs font-semibold uppercase tracking-widest"
+          style={{ color: 'var(--color-muted)', letterSpacing: '0.06em' }}
+        >
+          Your text
+        </span>
+        <span className="text-xs" style={{ color: 'var(--color-muted)' }}>
+          {charCount} {charCount === 1 ? 'character' : 'characters'} · {wordCount}{' '}
+          {wordCount === 1 ? 'word' : 'words'}
+        </span>
       </div>
 
-      {/* Main Text Display Area */}
-      <div className="p-4 flex-1 min-h-[140px] flex flex-col justify-between">
+      {/* Text display */}
+      <div className="px-5 pt-5 pb-4 flex-1 min-h-[120px]">
         <div
-          className="w-full min-h-[90px] font-mono text-lg md:text-xl text-slate-100 whitespace-pre-wrap break-words leading-relaxed selection:bg-violet-600 selection:text-white"
+          className="min-h-[72px] break-words leading-tight"
           data-testid="text-buffer-display"
+          aria-live="polite"
+          aria-label="Translated text output"
+          style={{
+            fontSize: '44px',
+            fontWeight: '700',
+            letterSpacing: '0.04em',
+            color: 'var(--color-ink)',
+          }}
         >
           {textBuffer ? (
             <span>
               {textBuffer}
-              <span className="inline-block w-2 h-5 ml-0.5 bg-violet-400 animate-pulse align-middle" />
+              {/* Coral caret */}
+              <span
+                className="inline-block w-[3px] h-[44px] ml-1 align-middle animate-pulse"
+                style={{ backgroundColor: 'var(--color-coral-text)' }}
+                aria-hidden="true"
+              />
             </span>
           ) : (
-            <span className="text-slate-500 italic text-sm md:text-base font-sans select-none">
-              Signs recognized through the camera will appear here...
+            <span
+              className="text-base font-normal not-italic"
+              style={{ color: 'var(--color-muted)' }}
+            >
+              Signs you make will appear here
             </span>
           )}
         </div>
+      </div>
 
-        {/* Toolbar Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800/80">
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleSpace}
-              disabled={!isConnected}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors border border-slate-700"
-              title="Add word space"
-            >
-              <Space size={14} />
-              <span>Space</span>
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={!isConnected || charCount === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors border border-slate-700"
-              title="Backspace character"
-            >
-              <Delete size={14} />
-              <span>Delete</span>
-            </button>
-            <button
-              onClick={handleClear}
-              disabled={!isConnected || charCount === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-red-950/40 text-slate-200 hover:text-red-300 disabled:opacity-40 disabled:pointer-events-none transition-colors border border-slate-700 hover:border-red-800/50"
-              title="Clear text buffer"
-            >
-              <Trash2 size={14} />
-              <span>Clear</span>
-            </button>
-          </div>
+      {/* Controls */}
+      <div
+        className="flex items-center justify-between px-5 py-3 border-t gap-2 flex-wrap"
+        style={{ borderColor: 'var(--color-line)' }}
+      >
+        {/* Left: editing buttons */}
+        <div className="flex items-center gap-2">
+          {(['Space', 'Delete', 'Clear'] as const).map((label) => {
+            const disabled =
+              !isConnected || (label !== 'Space' && charCount === 0);
+            const handler =
+              label === 'Space' ? handleSpace : label === 'Delete' ? handleDelete : handleClear;
+            return (
+              <button
+                key={label}
+                onClick={handler}
+                disabled={disabled}
+                className="btn-sm text-sm font-medium px-4 border transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                style={{
+                  borderColor: 'var(--color-line)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-ink)',
+                  borderRadius: 'var(--radius-button)',
+                }}
+                aria-label={label}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleToggleSpeech}
-              disabled={!isConnected}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                speechEnabled
-                  ? 'bg-violet-950/50 text-violet-300 border-violet-800 hover:bg-violet-900/60'
-                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
-              } disabled:opacity-40 disabled:pointer-events-none`}
-              title={speechEnabled ? 'Mute Speech Output' : 'Enable Speech Output'}
-            >
-              {speechEnabled ? <Volume2 size={14} className="text-violet-400" /> : <VolumeX size={14} />}
-              <span>{speechEnabled ? 'Speech On' : 'Muted'}</span>
-            </button>
+        {/* Right: Copy + Speak aloud */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCopy}
+            disabled={charCount === 0}
+            className="btn-sm text-sm font-medium px-4 border transition-colors disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5"
+            style={{
+              borderColor: 'var(--color-line)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-ink)',
+              borderRadius: 'var(--radius-button)',
+            }}
+            aria-label="Copy text to clipboard"
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} aria-hidden="true" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
 
-            <button
-              onClick={handleCopy}
-              disabled={charCount === 0}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                copied
-                  ? 'bg-cyan-950/50 text-cyan-300 border-cyan-700'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-              } disabled:opacity-40 disabled:pointer-events-none`}
-              title="Copy text to clipboard"
-            >
-              {copied ? <Check size={14} className="text-cyan-400" /> : <Copy size={14} />}
-              <span>{copied ? 'Copied!' : 'Copy'}</span>
-            </button>
-          </div>
+          <button
+            onClick={handleSpeak}
+            disabled={charCount === 0}
+            className="btn-sm text-sm font-semibold px-5 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            style={{
+              backgroundColor: 'var(--color-brand)',
+              color: 'white',
+              borderRadius: 'var(--radius-button)',
+            }}
+            aria-label="Speak text aloud"
+          >
+            Speak aloud
+          </button>
         </div>
       </div>
     </div>
   );
 }
-

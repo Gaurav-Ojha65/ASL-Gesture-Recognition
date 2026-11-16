@@ -2,7 +2,6 @@ import type { LandmarkPoint } from '@/types/api';
 
 /**
  * MediaPipe Hand landmark connections (21 landmarks, 0-indexed).
- * Standard skeleton connectivity.
  */
 const HAND_CONNECTIONS: [number, number][] = [
   // Thumb
@@ -20,19 +19,12 @@ const HAND_CONNECTIONS: [number, number][] = [
 ];
 
 export interface RenderArea {
-  /** X offset of the actual video content inside the canvas element (letterbox) */
   offsetX: number;
-  /** Y offset of the actual video content inside the canvas element (letterbox) */
   offsetY: number;
-  /** Width of the actual video content */
   contentWidth: number;
-  /** Height of the actual video content */
   contentHeight: number;
 }
 
-/**
- * Calculates the actual video content area inside a container that uses object-fit: contain.
- */
 export function getContainArea(
   containerWidth: number,
   containerHeight: number,
@@ -65,18 +57,14 @@ export function getContainArea(
 }
 
 /**
- * Renders all 21 hand landmarks and connections onto a canvas.
+ * Renders all 21 hand landmarks onto the canvas.
  *
- * MIRRORING NOTE:
- * - The CSS video element is mirrored (scaleX(-1)) for natural display.
- * - The backend ALSO mirrors the frame before landmark detection.
- * - Therefore landmark x-coordinates are already aligned with the mirrored video.
- * - Do NOT apply an additional horizontal flip here.
+ * MIRRORING: CSS video is scaleX(-1). Backend mirrors frame before detection.
+ * Landmark x-coords already align with the mirrored video — do NOT re-flip.
  *
- * @param ctx - Canvas 2D rendering context
- * @param landmarks - Array of 21 normalized [0,1] x/y/z landmark points
- * @param area - The actual video content area (accounting for letterboxing)
- * @param dpr - Device pixel ratio for crisp rendering
+ * Color scheme (warm light redesign):
+ *   Bones: white at 60% opacity, thin dark outline
+ *   Joints: #B23E26 (coral-text) fill, white stroke
  */
 export function renderLandmarks(
   ctx: CanvasRenderingContext2D,
@@ -96,12 +84,14 @@ export function renderLandmarks(
   }
 
   ctx.save();
-  ctx.lineWidth = 2 * dpr;
 
-  // Draw connections
-  ctx.strokeStyle = 'rgba(139, 92, 246, 0.85)'; // violet-500
-  ctx.shadowColor = 'rgba(139, 92, 246, 0.4)';
-  ctx.shadowBlur = 4 * dpr;
+  // ── Bones (connections) ───────────────────────────────────────────────────
+  ctx.lineWidth = 2.5 * dpr;
+  ctx.lineCap = 'round';
+
+  // Thin dark outline pass for legibility on light backgrounds
+  ctx.strokeStyle = 'rgba(31, 42, 46, 0.25)';
+  ctx.lineWidth = 4 * dpr;
   for (const [a, b] of HAND_CONNECTIONS) {
     const [ax, ay] = lmToPixel(landmarks[a]);
     const [bx, by] = lmToPixel(landmarks[b]);
@@ -111,25 +101,40 @@ export function renderLandmarks(
     ctx.stroke();
   }
 
-  // Draw landmark nodes
-  ctx.shadowColor = 'rgba(34, 211, 238, 0.6)'; // cyan-400 glow
-  ctx.shadowBlur = 6 * dpr;
+  // White fill pass at 60% opacity
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.60)';
+  ctx.lineWidth = 2.5 * dpr;
+  for (const [a, b] of HAND_CONNECTIONS) {
+    const [ax, ay] = lmToPixel(landmarks[a]);
+    const [bx, by] = lmToPixel(landmarks[b]);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+  }
+
+  // ── Joints (landmark nodes) ───────────────────────────────────────────────
   for (let i = 0; i < 21; i++) {
     const [px, py] = lmToPixel(landmarks[i]);
     const isKeyPoint = [0, 4, 8, 12, 16, 20].includes(i); // wrist + fingertips
+    const r = (isKeyPoint ? 5 : 3.5) * dpr;
 
+    // White stroke border
     ctx.beginPath();
-    ctx.arc(px, py, (isKeyPoint ? 5 : 3) * dpr, 0, Math.PI * 2);
-    ctx.fillStyle = isKeyPoint ? '#22d3ee' : '#a78bfa'; // cyan-400 or violet-400
+    ctx.arc(px, py, r + 1 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+
+    // Coral fill
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#B23E26';
     ctx.fill();
   }
 
   ctx.restore();
 }
 
-/**
- * Clears the canvas completely.
- */
 export function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
