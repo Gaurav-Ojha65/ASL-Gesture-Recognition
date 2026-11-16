@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: asl-gesture-studio-backend
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: CORS_ORIGINS
+        value: https://asl-gesture-studio.vercel.app,http://localhost:5173
+    healthCheckPath: /api/health

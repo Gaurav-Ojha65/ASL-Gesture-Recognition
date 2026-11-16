@@ -61,10 +61,22 @@ def create_app(frontend_dist: Optional[Path] = None, enable_lifespan: bool = Tru
         lifespan=lifespan if enable_lifespan else None
     )
 
-    # Enable CORS for React + Vite development and cross-origin clients
+    # Configure CORS for Vercel production domain, local dev, and preview deployments
+    cors_env = os.getenv("CORS_ORIGINS", "")
+    allowed_origins = [orig.strip() for orig in cors_env.split(",") if orig.strip()]
+    default_origins = [
+        "https://asl-gesture-studio.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+    origins = list(dict.fromkeys(allowed_origins + default_origins))
+
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=origins,
+        allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

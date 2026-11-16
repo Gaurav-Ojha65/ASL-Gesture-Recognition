@@ -1,0 +1,19 @@
+# ==============================================================================
+# ASL Gesture Studio - Cloud Production Backend Dependencies (CPU-Optimized)
+# Target Python Version: 3.12
+#
+# Optimized for persistent cloud container hosting (Render, Railway, Fly.io, etc.)
+# Excludes desktop GUI/audio libraries and CUDA overhead to minimize image size
+# and prevent libGL/X11 headless crashes.
+# ==============================================================================
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.0.0
+torchvision>=0.15.0
+mediapipe==1.0.1
+opencv-python-headless>=4.8.0
+numpy>=1.24.0,<3.0.0
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+websockets>=11.0
+pydantic>=2.0.0
