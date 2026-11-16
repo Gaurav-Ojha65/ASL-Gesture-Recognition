@@ -4,23 +4,45 @@ import { Dashboard } from '@/pages/Dashboard';
 import { LiveTranslator } from '@/pages/LiveTranslator';
 import { ModelInsights } from '@/pages/ModelInsights';
 import { Diagnostics } from '@/pages/Diagnostics';
+import { Alphabet } from '@/pages/Alphabet';
+import { CameraStatusProvider, useCameraStatus } from '@/context/CameraStatusContext';
+
+function AppShell() {
+  const { cameraActive } = useCameraStatus();
+
+  return (
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ backgroundColor: 'var(--color-bg)' }}
+    >
+      <Sidebar cameraActive={cameraActive} />
+
+      <main className="flex-1">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/translator" element={<LiveTranslator />} />
+          <Route path="/alphabet" element={<Alphabet />} />
+          <Route path="/model" element={<ModelInsights />} />
+          <Route path="/diagnostics" element={<Diagnostics />} />
+        </Routes>
+      </main>
+
+      <footer
+        className="text-center text-sm py-4"
+        style={{ color: 'var(--color-muted)' }}
+      >
+        ASL Gesture Studio · v1.0
+      </footer>
+    </div>
+  );
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex min-h-screen bg-slate-950">
-        <Sidebar />
-        <main className="flex-1 min-w-0 lg:overflow-y-auto">
-          {/* Mobile top-padding for fixed header */}
-          <div className="lg:hidden h-14" />
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/translator" element={<LiveTranslator />} />
-            <Route path="/model" element={<ModelInsights />} />
-            <Route path="/diagnostics" element={<Diagnostics />} />
-          </Routes>
-        </main>
-      </div>
+      <CameraStatusProvider>
+        <AppShell />
+      </CameraStatusProvider>
     </BrowserRouter>
   );
 }

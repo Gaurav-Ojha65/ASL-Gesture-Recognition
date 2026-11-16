@@ -1,111 +1,81 @@
 import { NavLink } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Video,
-  Brain,
-  Activity,
-  Hand,
-  Menu,
-  X,
-} from 'lucide-react';
-import { useState } from 'react';
+import { Logo } from '@/components/brand/Logo';
 
-interface NavItem {
-  to: string;
-  icon: React.ElementType;
-  label: string;
+interface NavBarProps {
+  cameraActive?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/translator', icon: Video, label: 'Live Translator' },
-  { to: '/model', icon: Brain, label: 'Model Insights' },
-  { to: '/diagnostics', icon: Activity, label: 'Diagnostics' },
+const NAV_ITEMS = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/translator', label: 'Translate', end: false },
+  { to: '/alphabet', label: 'Alphabet', end: false },
+  { to: '/model', label: 'How it works', end: false },
+  { to: '/diagnostics', label: 'Developer tools', end: false },
 ];
 
-export function Sidebar() {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const navContent = (
-    <nav className="flex flex-col h-full">
-      {/* Brand */}
-      <div className="flex items-center gap-3 px-5 py-6 border-b border-slate-800">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #7c3aed, #c026d3)' }}
-        >
-          <Hand size={18} className="text-white" />
-        </div>
-        <div>
-          <span className="font-semibold text-slate-100 text-sm leading-tight block">ASL Gesture</span>
-          <span className="font-semibold text-slate-100 text-sm leading-tight block">Studio</span>
-        </div>
-      </div>
-
-      {/* Nav links */}
-      <div className="flex-1 px-3 py-4 space-y-1">
-        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group
-              ${isActive
-                ? 'bg-slate-800 text-slate-100 border-l-2 border-violet-500'
-                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 border-l-2 border-transparent'
-              }`
-            }
-          >
-            <Icon size={18} />
-            {label}
-          </NavLink>
-        ))}
-      </div>
-
-      {/* Footer */}
-      <div className="px-5 py-4 border-t border-slate-800">
-        <p className="text-xs text-slate-600">ASL Gesture Studio v1.0</p>
-      </div>
-    </nav>
-  );
-
+export function Sidebar({ cameraActive = false }: NavBarProps) {
   return (
-    <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-[260px] flex-shrink-0 bg-slate-900 border-r border-slate-800 h-screen sticky top-0">
-        {navContent}
-      </aside>
-
-      {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-7 h-7 rounded-md flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #c026d3)' }}
-          >
-            <Hand size={15} className="text-white" />
-          </div>
-          <span className="font-semibold text-slate-100 text-sm">ASL Gesture Studio</span>
-        </div>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 text-slate-400 hover:text-slate-100"
-          aria-label="Toggle menu"
+    <header
+      className="sticky top-0 z-40 w-full bg-surface border-b"
+      style={{ borderColor: 'var(--color-line)' }}
+    >
+      <div
+        className="mx-auto flex items-center gap-6 px-10 h-14"
+        style={{ maxWidth: '1240px' }}
+      >
+        {/* Brand */}
+        <NavLink
+          to="/"
+          className="flex items-center gap-2.5 flex-shrink-0 no-underline btn-sm"
+          aria-label="ASL Gesture Studio home"
         >
-          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </div>
+          <Logo size={36} />
+          <span
+            className="font-bold text-sm leading-tight"
+            style={{ color: 'var(--color-ink)' }}
+          >
+            ASL Gesture<br />Studio
+          </span>
+        </NavLink>
 
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
-          <aside className="relative w-[260px] h-full bg-slate-900 border-r border-slate-800">
-            {navContent}
-          </aside>
+        {/* Nav links */}
+        <nav className="flex-1 flex items-center justify-center gap-1" aria-label="Main navigation">
+          {NAV_ITEMS.map(({ to, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                `btn-sm flex items-center px-4 py-1.5 rounded-pill text-sm font-medium transition-colors no-underline
+                ${isActive
+                  ? 'bg-brand-soft text-brand'
+                  : 'text-muted hover:text-ink hover:bg-track'
+                }`
+              }
+              aria-current={undefined}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* Camera status pill */}
+        <div
+          className="flex-shrink-0 flex items-center gap-1.5 text-sm font-medium btn-sm px-3"
+          style={{ color: cameraActive ? 'var(--color-success)' : 'var(--color-muted)' }}
+          aria-live="polite"
+          aria-label={cameraActive ? 'Camera on' : 'Camera off'}
+        >
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{
+              backgroundColor: cameraActive ? 'var(--color-success)' : 'var(--color-sand)',
+            }}
+            aria-hidden="true"
+          />
+          {cameraActive ? 'Camera on' : 'Camera off'}
         </div>
-      )}
-    </>
+      </div>
+    </header>
   );
 }
