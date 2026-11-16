@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { to: '/diagnostics', label: 'Developer tools', end: false },
 ];
 
-export function Sidebar({ cameraActive = false }: NavBarProps) {
+export function Navbar({ cameraActive = false }: NavBarProps) {
   return (
     <header
       className="sticky top-0 z-40 w-full bg-surface border-b"
@@ -80,3 +80,5 @@ export function Sidebar({ cameraActive = false }: NavBarProps) {
     </header>
   );
 }
+
+export const Sidebar = Navbar;

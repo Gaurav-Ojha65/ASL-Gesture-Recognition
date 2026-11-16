@@ -2,15 +2,17 @@ import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { Navbar } from '@/components/layout/Navbar';
 import { TextBufferPanel } from '@/components/text-buffer/TextBufferPanel';
 import { RecognitionPanel } from '@/components/recognition/RecognitionPanel';
+import { WebcamPanel } from '@/components/webcam/WebcamPanel';
+import * as webcamHook from '@/hooks/useWebcam';
 
 describe('Frontend Component Tests', () => {
-  it('Sidebar renders branding and all navigation routes with active state', () => {
+  it('Navbar renders branding and all navigation routes with active state', () => {
     render(
       <MemoryRouter initialEntries={['/translator']}>
-        <Sidebar cameraActive={true} />
+        <Navbar cameraActive={true} />
       </MemoryRouter>
     );
 
@@ -155,5 +157,77 @@ describe('Frontend Component Tests', () => {
     // Three placeholder dashes rendered in Other possibilities
     const dashes = screen.getAllByText('–');
     expect(dashes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('WebcamPanel renders idle fallback overlay with hand guidance', () => {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+
+    render(
+      <WebcamPanel
+        connectionStatus="connected"
+        sendFrame={() => true}
+        lastRecognition={null}
+      />
+    );
+    expect(screen.getByText(/Keep your hand centered in the frame/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Enable camera/i })).toBeInTheDocument();
+  });
+
+  it('WebcamPanel renders "No hand detected" badge when camera is active and no hand in frame', () => {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+
+    vi.spyOn(webcamHook, 'useWebcam').mockReturnValue({
+      videoRef: { current: null },
+      cameraStatus: 'active',
+      videoWidth: 640,
+      videoHeight: 480,
+      startCamera: vi.fn(),
+      stopCamera: vi.fn(),
+      errorMessage: null,
+    });
+
+    render(
+      <WebcamPanel
+        connectionStatus="connected"
+        sendFrame={() => true}
+        lastRecognition={{
+          type: 'recognition_result',
+          sequence_id: 2,
+          server_receive_timestamp_ms: 1000,
+          processing_completion_timestamp_ms: 1012,
+          processing_duration_ms: 12.0,
+          hand_detected: false,
+          handedness: null,
+          landmark_valid: false,
+          landmarks: null,
+          raw_prediction: null,
+          raw_confidence: 0,
+          smoothed_prediction: null,
+          smoothed_confidence: 0,
+          confidence_gate_passed: false,
+          static_fallback_label: null,
+          dynamic_candidate: null,
+          confirmed_dynamic_result: null,
+          fsm_candidate: null,
+          fsm_is_dwelling: false,
+          fsm_dwell_time: 0,
+          dwell_progress: 0,
+          committed_label: null,
+          text_buffer: '',
+          speech_token: null,
+          error_status: null,
+        }}
+      />
+    );
+
+    expect(screen.getByText('No hand detected')).toBeInTheDocument();
   });
 });

@@ -1,11 +1,15 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { Navbar } from '@/components/layout/Navbar';
 import { Dashboard } from '@/pages/Dashboard';
 import { LiveTranslator } from '@/pages/LiveTranslator';
 import { ModelInsights } from '@/pages/ModelInsights';
 import { Diagnostics } from '@/pages/Diagnostics';
-import { DevStates } from '@/pages/DevStates';
 import { CameraStatusProvider, useCameraStatus } from '@/context/CameraStatusContext';
+
+const DevStates = import.meta.env.DEV
+  ? lazy(() => import('@/pages/DevStates').then((m) => ({ default: m.DevStates })))
+  : null;
 
 function AppShell() {
   const { cameraActive } = useCameraStatus();
@@ -15,7 +19,7 @@ function AppShell() {
       className="min-h-screen flex flex-col"
       style={{ backgroundColor: 'var(--color-bg)' }}
     >
-      <Sidebar cameraActive={cameraActive} />
+      <Navbar cameraActive={cameraActive} />
 
       <main className="flex-1">
         <Routes>
@@ -23,7 +27,18 @@ function AppShell() {
           <Route path="/translator" element={<LiveTranslator />} />
           <Route path="/model" element={<ModelInsights />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
-          <Route path="/dev-states" element={<DevStates />} />
+          {import.meta.env.DEV && DevStates && (
+            <Route
+              path="/dev-states"
+              element={
+                <Suspense fallback={null}>
+                  <DevStates />
+                </Suspense>
+              }
+            />
+          )}
+          {/* Catch-all fallback for undefined routes in production */}
+          <Route path="*" element={<Dashboard />} />
         </Routes>
       </main>
 
