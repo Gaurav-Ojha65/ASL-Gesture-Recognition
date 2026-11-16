@@ -47,7 +47,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 const PIPELINE_STEPS = [
   { label: 'Browser Frame', sub: 'getUserMedia()' },
-  { label: 'MediaPipe HandLandmarker', sub: 'WASM model' },
+  { label: 'MediaPipe HandLandmarker', sub: 'Python Server-Side' },
   { label: '21 Hand Landmarks', sub: 'x, y, z per point' },
   { label: 'Landmark Normalization', sub: 'wrist-relative, scale-invariant' },
   { label: '63-D Feature Vector', sub: '21 × 3 floats' },
@@ -118,6 +118,9 @@ function MlpDiagram({ paramCount }: { paramCount?: number }) {
         {paramCount === undefined && (
           <span className="text-slate-500">(hardcoded fallback — backend offline)</span>
         )}
+        <span className="text-slate-400 text-[11px] block mt-0.5">
+          (Note: Total of 18,524 parameters includes Linear weights, biases, and BatchNorm layers)
+        </span>
       </div>
       <div className="grid grid-cols-2 gap-2 mt-4">
         <InfoRow label="Activation (hidden)" value="ReLU" />

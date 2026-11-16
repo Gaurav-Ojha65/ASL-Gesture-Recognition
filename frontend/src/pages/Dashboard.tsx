@@ -245,7 +245,7 @@ export function Dashboard() {
               },
               {
                 icon: <Zap size={16} className="text-violet-500 shrink-0" />,
-                text: 'Up to 15 FPS real-time recognition',
+                text: '12 FPS cap real-time recognition',
               },
             ].map(({ icon, text }) => (
               <li key={text} className="flex items-start gap-3 text-slate-300 text-sm">

@@ -11,7 +11,6 @@ import {
   Clock,
   Layers,
   Sliders,
-  AlertCircle,
 } from 'lucide-react';
 
 export function Diagnostics() {
@@ -220,7 +219,7 @@ export function Diagnostics() {
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-500 font-mono">
-            Target pipeline throughput: 10–15 FPS
+            Target pipeline throughput: 12 FPS cap
           </div>
         </div>
 
@@ -309,6 +308,32 @@ export function Diagnostics() {
                   : 'none'}
               </span>
             </div>
+            {/* Top-3 Probability Candidates */}
+            <div className="pt-2 border-t border-slate-800/60">
+              <span className="text-slate-400 block mb-1.5">Top-3 Candidates:</span>
+              {rec?.top_predictions && rec.top_predictions.length > 0 ? (
+                <div className="space-y-1">
+                  {rec.top_predictions.map((p, idx) => (
+                    <div key={p.label || idx} className="flex items-center justify-between">
+                      <span className="text-slate-300 font-bold">#{idx + 1} {p.label}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-20 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-violet-500 rounded-full"
+                            style={{ width: `${Math.round(p.confidence * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-slate-400 w-12 text-right">
+                          {(p.confidence * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-slate-500 italic">No prediction stream active</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -348,18 +373,6 @@ export function Diagnostics() {
               <span className="text-slate-200">{rec?.speech_token ?? 'none'}</span>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Contract Notice Regarding Missing Top-Predictions */}
-      <div className="mt-5 p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex items-start gap-3">
-        <AlertCircle size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
-        <div>
-          <span className="text-slate-200 font-semibold">Note on Top-3 Probability Distribution:</span> The backend
-          currently computes full 28-class softmax probabilities internally, but returns only the Top-1 prediction in{' '}
-          <code className="text-violet-400 bg-slate-800 px-1 py-0.5 rounded">RecognitionResponse</code>. As documented in the
-          contract audit (<code className="text-slate-300">reports/frontend_backend_contract_audit.md</code>), multi-class probability
-          charts require a minor backend schema update and are omitted here rather than displaying fabricated values.
         </div>
       </div>
 

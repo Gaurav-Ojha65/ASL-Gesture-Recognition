@@ -65,7 +65,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-slate-800">
-        <p className="text-xs text-slate-600">Phase C — React Frontend</p>
+        <p className="text-xs text-slate-600">ASL Gesture Studio v1.0</p>
       </div>
     </nav>
   );
