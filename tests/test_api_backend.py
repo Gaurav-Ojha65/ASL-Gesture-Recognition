@@ -163,6 +163,8 @@ def test_websocket_no_hand_handling():
             assert data["raw_prediction"] is None
             assert data["smoothed_prediction"] is None
             assert data["fsm_is_dwelling"] is False
+            assert data["dwell_progress"] == 0.0
+            assert data.get("top_predictions") is None or data.get("top_predictions") == []
 
 
 # ─── 6. WebSocket Initialization and Control Actions ──────────────────────────
@@ -341,6 +343,58 @@ def test_real_hand_websocket_recognition():
             assert resp_data["raw_prediction"] == "L"
             assert resp_data["raw_confidence"] > 0.70
             assert resp_data["processing_duration_ms"] > 0.0
+
+            # Real hand contract assertions:
+            top_preds = resp_data.get("top_predictions")
+            assert isinstance(top_preds, list)
+            assert len(top_preds) == 3
+            for item in top_preds:
+                assert isinstance(item["label"], str)
+                assert 0.0 <= item["confidence"] <= 1.0
+            assert top_preds[0]["confidence"] >= top_preds[1]["confidence"] >= top_preds[2]["confidence"]
+            top_label = resp_data.get("smoothed_prediction") or resp_data.get("raw_prediction")
+            assert top_preds[0]["label"] == top_label
+            assert isinstance(resp_data["dwell_progress"], (float, int))
+            assert 0.0 <= resp_data["dwell_progress"] <= 1.0
+
+
+def test_websocket_committed_letter_then_no_hand_resets_dwell():
+    """Verify holding a sign commits letter, and subsequent blank frame resets dwell_progress to 0.0."""
+    img_l = cv2.imread("data/raw/asl_alphabet_external/L/L0001_test.jpg")
+    assert img_l is not None, "Physical test image for L missing"
+    _, enc_l = cv2.imencode(".jpg", img_l, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    raw_l_bytes = enc_l.tobytes()
+
+    blank = np.zeros((480, 640, 3), dtype=np.uint8)
+    _, enc_blank = cv2.imencode(".jpg", blank, [cv2.IMWRITE_JPEG_QUALITY, 70])
+    raw_blank_bytes = enc_blank.tobytes()
+
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/recognition") as ws:
+            seq = 1
+            committed = False
+            # Stream physical L frames over >= 0.7s to achieve dwell commitment
+            for _ in range(8):
+                ws.send_text(json.dumps({"type": "frame", "sequence_id": seq}))
+                ws.send_bytes(raw_l_bytes)
+                resp = json.loads(ws.receive_text())
+                if resp.get("committed_label") == "L":
+                    committed = True
+                    break
+                seq += 1
+                time.sleep(0.12)
+
+            assert committed is True, "Expected 'L' to commit after holding steady"
+
+            # Now send no-hand frame
+            seq += 1
+            ws.send_text(json.dumps({"type": "frame", "sequence_id": seq}))
+            ws.send_bytes(raw_blank_bytes)
+            no_hand_resp = json.loads(ws.receive_text())
+
+            assert no_hand_resp["hand_detected"] is False
+            assert no_hand_resp["dwell_progress"] == 0.0
+            assert no_hand_resp.get("top_predictions") is None or no_hand_resp.get("top_predictions") == []
 
 
 # ─── 13. Resource Cleanup and Application Shutdown ────────────────────────────
