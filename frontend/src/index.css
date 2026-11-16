@@ -1,0 +1,92 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@theme {
+  /* ── Palette ─────────────────────────────────────── */
+  --color-bg: #FAF7F2;
+  --color-surface: #FFFFFF;
+  --color-ink: #1F2A2E;
+  --color-muted: #5E6B6F;
+  --color-line: #E6DFD3;
+  --color-track: #EFE9DF;
+  --color-sand: #C9BFAE;
+
+  --color-brand: #0F5C5C;
+  --color-brand-soft: #E3F0EE;
+  --color-on-brand: #FFFFFF;
+
+  --color-coral-text: #B23E26;
+  --color-coral-soft: #FBE9E4;
+  --color-coral-line: #F2CFC6;
+
+  --color-success: #2E9E6B;
+
+  /* ── Radii ───────────────────────────────────────── */
+  --radius-card: 24px;
+  --radius-button: 12px;
+  --radius-pill: 9999px;
+
+  /* ── Typography ──────────────────────────────────── */
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+/* ── Global reset & base ─────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Minimum interactive target size ─────────────── */
+button,
+a,
+[role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Allow inline/small buttons to override when needed */
+.btn-sm {
+  min-height: 32px;
+  min-width: auto;
+}
+
+/* ── Focus ring ──────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Reduced motion ──────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Hide scrollbars ─────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

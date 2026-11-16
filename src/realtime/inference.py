@@ -14,7 +14,7 @@ import os
 import math
 from collections import deque
 from dataclasses import dataclass
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Union, Dict, Any, Tuple
 import numpy as np
 import torch
 
@@ -113,22 +113,74 @@ class ASLInferenceEngine:
         Returns:
             torch.Tensor of shape (batch_size, 28) containing raw logits.
         """
-        with torch.no_grad():
+        with torch.inference_mode():
             return self.model(features_tensor)
+
+    def predict_stateless(
+        self,
+        features: Union[np.ndarray, list, torch.Tensor]
+    ) -> Tuple[np.ndarray, np.ndarray, int, str, float]:
+        """
+        Executes pure stateless forward inference on a single 63-D feature vector.
+        Thread-safe, applies no internal mutation or probability history.
+        Uses torch.inference_mode() for optimal speed and memory efficiency.
+
+        Args:
+            features: 63-element feature vector (array, list, or tensor).
+
+        Returns:
+            Tuple of:
+            - raw_probabilities: np.ndarray shape (28,)
+            - logits: np.ndarray shape (28,)
+            - top1_idx: int
+            - top1_label: str
+            - top1_confidence: float
+
+        Raises:
+            ValueError: If input shape is not 63 elements, or contains NaN/Inf values.
+        """
+        if isinstance(features, torch.Tensor):
+            arr = features.detach().cpu().numpy()
+        else:
+            arr = np.asarray(features, dtype=np.float32)
+
+        if arr.size != 63 or arr.ndim > 2 or (arr.ndim == 2 and arr.shape != (1, 63)):
+            raise ValueError(f"Expected 63-dimensional feature vector, got shape: {arr.shape}")
+
+        arr = arr.reshape(1, 63).astype(np.float32)
+
+        if not np.isfinite(arr).all():
+            raise ValueError("Input features contain non-finite values (NaN or Inf).")
+
+        feat_tensor = torch.tensor(arr, dtype=torch.float32, device=self.device)
+
+        with torch.inference_mode():
+            logits = self.model(feat_tensor)
+            probs = torch.softmax(logits, dim=1)
+
+        raw_probs_np = probs[0].cpu().numpy()
+        logits_np = logits[0].cpu().numpy()
+        top1_idx = int(np.argmax(raw_probs_np))
+        top1_conf = float(raw_probs_np[top1_idx])
+        top1_label = get_semantic_label(top1_idx)
+
+        return raw_probs_np, logits_np, top1_idx, top1_label, top1_conf
 
     def predict(
         self,
         features: Union[np.ndarray, list, torch.Tensor],
-        raw_only: bool = False
+        raw_only: bool = False,
+        history_deque: Optional[deque] = None
     ) -> InferenceResult:
         """
         Executes inference on a single 63-dimensional normalized landmark vector.
-        Applies temporal probability smoothing across a rolling 3-frame window
-        to reject single-frame flicker and stabilize confidence without lag.
+        Applies temporal probability smoothing across a rolling 3-frame window.
 
         Args:
             features: 63-element feature vector (array, list, or tensor).
             raw_only: If True, bypasses temporal probability smoothing (returns raw single frame).
+            history_deque: Optional external deque for per-session smoothing isolation.
+                           If None, uses the engine's internal self._prob_history.
 
         Returns:
             InferenceResult with predicted label, index, confidence, probabilities, and logits.
@@ -136,35 +188,15 @@ class ASLInferenceEngine:
         Raises:
             ValueError: If input shape is not 63 elements, or contains NaN/Inf values.
         """
-        # Convert input to numpy array
-        if isinstance(features, torch.Tensor):
-            arr = features.detach().cpu().numpy()
-        else:
-            arr = np.asarray(features, dtype=np.float32)
+        raw_probs_np, logits_np, raw_idx, raw_label, raw_conf = self.predict_stateless(features)
 
-        # Validate dimensions
-        if arr.size != 63 or arr.ndim > 2 or (arr.ndim == 2 and arr.shape != (1, 63)):
-            raise ValueError(f"Expected 63-dimensional feature vector, got shape: {arr.shape}")
-
-        arr = arr.reshape(1, 63).astype(np.float32)
-
-        # Validate values (finiteness)
-        if not np.isfinite(arr).all():
-            raise ValueError("Input features contain non-finite values (NaN or Inf).")
-
-        feat_tensor = torch.tensor(arr, dtype=torch.float32, device=self.device)
-
-        with torch.no_grad():
-            logits = self.model(feat_tensor)
-            probs = torch.softmax(logits, dim=1)
-
-        raw_probs_np = probs[0].cpu().numpy()
-        logits_np = logits[0].cpu().numpy()
+        # Target history queue: external session queue if provided, else internal
+        target_history = history_deque if history_deque is not None else self._prob_history
 
         # Apply 3-frame moving-average probability smoothing
         if self.enable_smoothing and not raw_only and self.smoothing_window > 1:
-            self._prob_history.append(raw_probs_np)
-            smoothed_probs = np.mean(self._prob_history, axis=0)
+            target_history.append(raw_probs_np)
+            smoothed_probs = np.mean(target_history, axis=0)
             # Ensure strict sum-to-1 normalization against float roundoff
             prob_sum = smoothed_probs.sum()
             if prob_sum > 0:
@@ -173,8 +205,8 @@ class ASLInferenceEngine:
             confidence = float(smoothed_probs[pred_idx])
             final_probs = smoothed_probs
         else:
-            pred_idx = int(torch.argmax(logits, dim=1).item())
-            confidence = float(raw_probs_np[pred_idx])
+            pred_idx = raw_idx
+            confidence = raw_conf
             final_probs = raw_probs_np
 
         pred_label = get_semantic_label(pred_idx)

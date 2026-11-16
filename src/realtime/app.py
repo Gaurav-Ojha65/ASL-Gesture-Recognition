@@ -44,10 +44,12 @@ from src.realtime.text_buffer import TextBuffer
 from src.realtime.temporal_sequence import (
     TemporalSequenceBuffer,
     DynamicTrajectoryClassifier,
-    DynamicRecognitionResult
+    DynamicRecognitionResult,
+    KinematicFeatureExtractor
 )
 from src.realtime.speech import SpeechEngine
 from src.landmarks.geometric_disambiguator import ASLGeometricDisambiguator
+from src.realtime.gesture_diagnostics import GestureDiagnosticsLogger
 
 
 # ─── Diagnostic CSV schema ────────────────────────────────────────────────────
@@ -224,6 +226,14 @@ class FrameProcessingResult:
     norm_success: Optional[bool] = None
     norm_failure_reason: str = ""
     error_category: str = ""
+    raw_probabilities: Optional[np.ndarray] = None
+    handedness_score: Optional[float] = None
+    hand_scale: Optional[float] = None
+    static_remapped_label: Optional[str] = None
+    sm_input_label: Optional[str] = None
+    dynamic_result: Optional[DynamicRecognitionResult] = None
+    pinky_posture_ok: Optional[bool] = None
+    index_posture_ok: Optional[bool] = None
 
 
 # ─── Pipeline ─────────────────────────────────────────────────────────────────
@@ -237,7 +247,7 @@ class ASLRealTimePipeline:
         self,
         checkpoint_path: str = "models/asl_landmark_mlp_best.pt",
         task_model_path: str = "hand_landmarker.task",
-        dwell_duration: float = 0.40,
+        dwell_duration: float = 0.60,
         release_duration: float = 0.25,
         min_confidence: float = 0.70,
         detector: Optional[vision.HandLandmarker] = None,
@@ -247,13 +257,13 @@ class ASLRealTimePipeline:
         enable_speech: bool = True,
         speech_engine: Optional[SpeechEngine] = None,
         smoothing_window: int = 3,
-        enable_disambiguation: bool = True,
+        enable_disambiguation: bool = False,
     ):
         """
         Args:
             checkpoint_path: Path to PyTorch model checkpoint.
             task_model_path: Path to MediaPipe hand_landmarker.task.
-            dwell_duration: Dwell confirmation duration in seconds (default: 0.40).
+            dwell_duration: Dwell confirmation duration in seconds (default: 0.60).
             release_duration: Sustained no-hand duration before re-arming in seconds (default: 0.25).
             min_confidence: Minimum prediction probability threshold (default: 0.70).
             detector: Optional pre-initialized MediaPipe HandLandmarker (useful for testing/mocking).
@@ -263,7 +273,7 @@ class ASLRealTimePipeline:
             enable_speech: Whether to enable text-to-speech audio synthesis (default: True).
             speech_engine: Optional pre-initialized SpeechEngine.
             smoothing_window: Moving average smoothing window size for prediction probabilities (default: 3).
-            enable_disambiguation: Whether to enable anatomical geometric disambiguation (default: True).
+            enable_disambiguation: Whether to enable anatomical geometric disambiguation (default: False).
         """
         self.checkpoint_path = checkpoint_path
         self.task_model_path = task_model_path
@@ -339,13 +349,19 @@ class ASLRealTimePipeline:
         self._prev_frame_time: Optional[float] = None
         self._fps_filtered: float = 0.0
 
-    def process_frame(self, frame_bgr: np.ndarray, timestamp_sec: float) -> FrameProcessingResult:
+    def process_frame(
+        self,
+        frame_bgr: np.ndarray,
+        timestamp_sec: float,
+        diagnostic_info: Optional[Dict[str, Any]] = None
+    ) -> FrameProcessingResult:
         """
         Processes a single input camera frame.
 
         Args:
             frame_bgr: BGR frame from OpenCV (H, W, 3).
             timestamp_sec: Monotonic timestamp in seconds.
+            diagnostic_info: Optional diagnostic trial metadata dict for HUD display.
 
         Returns:
             FrameProcessingResult containing annotations, predictions, and status.
@@ -417,10 +433,18 @@ class ASLRealTimePipeline:
         pred_conf: float = 0.0
         landmarks_dict: Optional[List[Dict[str, float]]] = None
         handedness_cat: Optional[str] = None
+        handedness_score: Optional[float] = None
         probabilities: Optional[np.ndarray] = None
+        raw_probabilities: Optional[np.ndarray] = None
         norm_success: Optional[bool] = None
         norm_failure_reason: str = ""
         error_category: str = ""
+        hand_scale: Optional[float] = None
+        static_remapped_label: Optional[str] = None
+        sm_input_label: Optional[str] = None
+        dyn_res_obj: Optional[DynamicRecognitionResult] = None
+        pinky_ok: Optional[bool] = None
+        index_ok: Optional[bool] = None
 
         if not has_hand:
             # Case A: No hand detected (Genuine absence)
@@ -438,6 +462,20 @@ class ASLRealTimePipeline:
             raw_landmarks = detection_result.hand_landmarks[0]
             landmarks_dict = [{'x': lm.x, 'y': lm.y, 'z': lm.z} for lm in raw_landmarks]
             handedness_cat = detection_result.handedness[0][0].category_name
+            if hasattr(detection_result.handedness[0][0], 'score'):
+                handedness_score = float(detection_result.handedness[0][0].score)
+
+            # Extract hand posture for diagnostic telemetry
+            try:
+                lm_posture_arr = np.array(
+                    [[lm['x'], lm['y'], lm.get('z', 0.0)] for lm in landmarks_dict],
+                    dtype=np.float32
+                )
+                hand_scale = float(np.linalg.norm(lm_posture_arr[9] - lm_posture_arr[0]))
+                pinky_ok, _, _ = KinematicFeatureExtractor.check_handshape_posture(lm_posture_arr, target_finger="pinky")
+                index_ok, _, _ = KinematicFeatureExtractor.check_handshape_posture(lm_posture_arr, target_finger="index")
+            except Exception:
+                pass
 
             # 6. Normalize landmarks
             is_valid, features, norm_reason = self.normalizer.normalize(landmarks_dict, handedness_cat)
@@ -467,6 +505,14 @@ class ASLRealTimePipeline:
                     pred_conf = inf_result.confidence
                     probabilities = inf_result.probabilities
 
+                    if hasattr(inf_result, 'logits') and inf_result.logits is not None:
+                        logits_arr = inf_result.logits
+                        shift_logits = logits_arr - np.max(logits_arr)
+                        exps = np.exp(shift_logits)
+                        sum_exps = np.sum(exps)
+                        if sum_exps > 0:
+                            raw_probabilities = exps / sum_exps
+
                     # Apply fine-grained geometric disambiguation for anatomical clusters
                     if (
                         self.enable_disambiguation
@@ -492,6 +538,9 @@ class ASLRealTimePipeline:
                     sm_label = pred_label
                     if self.enable_dynamic and pred_label in ('J', 'Z'):
                         sm_label = 'I' if pred_label == 'J' else 'D'
+
+                    static_remapped_label = pred_label
+                    sm_input_label = sm_label
 
                     status = "VALID_PREDICTION"
                     commit_event = self.state_machine.process_observation(
@@ -532,6 +581,7 @@ class ASLRealTimePipeline:
                 self.seq_buffer,
                 current_time=timestamp_sec
             )
+            dyn_res_obj = dyn_res
             if dyn_res.detected and dyn_res.gesture is not None:
                 commit_event = CommitEvent(
                     label=dyn_res.gesture,
@@ -567,7 +617,8 @@ class ASLRealTimePipeline:
             confidence=pred_conf,
             hand_detected=has_hand,
             landmarks=landmarks_dict,
-            fps=self._fps_filtered
+            fps=self._fps_filtered,
+            diagnostic_info=diagnostic_info
         )
 
         return FrameProcessingResult(
@@ -585,6 +636,14 @@ class ASLRealTimePipeline:
             norm_success=norm_success,
             norm_failure_reason=norm_failure_reason,
             error_category=error_category,
+            raw_probabilities=raw_probabilities,
+            handedness_score=handedness_score,
+            hand_scale=hand_scale,
+            static_remapped_label=static_remapped_label,
+            sm_input_label=sm_input_label,
+            dynamic_result=dyn_res_obj,
+            pinky_posture_ok=pinky_ok,
+            index_posture_ok=index_ok,
         )
 
     def render_hud(
@@ -595,7 +654,8 @@ class ASLRealTimePipeline:
         confidence: float,
         hand_detected: bool,
         landmarks: Optional[List[Dict[str, float]]],
-        fps: float
+        fps: float,
+        diagnostic_info: Optional[Dict[str, Any]] = None,
     ) -> np.ndarray:
         """
         Renders HUD overlay onto the frame.
@@ -682,6 +742,20 @@ class ASLRealTimePipeline:
         cv2.putText(out, state_text, (25, 155),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.52, state_col, 1, cv2.LINE_AA)
 
+        # 3.5 Diagnostic Card (if telemetry is active)
+        if diagnostic_info:
+            target = diagnostic_info.get("target", "NONE")
+            trial_id = diagnostic_info.get("trial_id", "IDLE")
+            overlay_diag = out.copy()
+            cv2.rectangle(overlay_diag, (15, 185), (280, 255), (35, 25, 45), -1)
+            cv2.addWeighted(overlay_diag, 0.75, out, 0.25, 0, out)
+            cv2.rectangle(out, (15, 185), (280, 255), (140, 70, 180), 1)
+
+            cv2.putText(out, f"[DIAG] Target: {target}", (25, 210),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 140, 255), 1, cv2.LINE_AA)
+            cv2.putText(out, f"Trial ID: {trial_id}", (25, 238),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180, 200, 255), 1, cv2.LINE_AA)
+
         # 4. Committed Text Buffer (Bottom prominent bar)
         overlay3 = out.copy()
         cv2.rectangle(overlay3, (15, h - 110), (w - 15, h - 45), (15, 20, 28), -1)
@@ -707,8 +781,12 @@ class ASLRealTimePipeline:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.85, text_col, 2, cv2.LINE_AA)
 
         # 5. Instructions footer
-        cv2.putText(out, "SPACE: Complete Word  |  BACKSPACE/DEL: Delete  |  C: Clear  |  V: Toggle Speech  |  Q/ESC: Quit",
-                    (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (180, 180, 180), 1, cv2.LINE_AA)
+        if diagnostic_info:
+            cv2.putText(out, "Keys: [1]T [2]J [3]Z [4]I [5]D [N]Next [0]Clear | SPACE: Word | DEL: Back | Q: Quit",
+                        (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (200, 220, 160), 1, cv2.LINE_AA)
+        else:
+            cv2.putText(out, "SPACE: Complete Word  |  BACKSPACE/DEL: Delete  |  C: Clear  |  V: Toggle Speech  |  Q/ESC: Quit",
+                        (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (180, 180, 180), 1, cv2.LINE_AA)
 
         return out
 
@@ -740,15 +818,16 @@ def run_app(
     camera_index: int = 0,
     checkpoint_path: str = "models/asl_landmark_mlp_best.pt",
     task_model_path: str = "hand_landmarker.task",
-    dwell_duration: float = 0.40,
+    dwell_duration: float = 0.60,
     release_duration: float = 0.25,
     min_confidence: float = 0.70,
     mirror_feed: bool = True,
     max_frames: Optional[int] = None,
     enable_diagnostics: bool = False,
-    diagnostics_dir: str = "reports/live_diagnostics",
+    diagnostics_dir: str = "reports/gesture_diagnostics",
     enable_dynamic: bool = True,
     enable_speech: bool = True,
+    enable_disambiguation: bool = False,
 ) -> int:
     """
     Main application runner.
@@ -757,11 +836,12 @@ def run_app(
     Returns 0 on clean exit, non-zero on startup or camera failure.
 
     Args:
-        enable_diagnostics: When True, writes a per-session CSV under diagnostics_dir.
-                            Disabled by default. Does NOT capture or store video/images.
-        diagnostics_dir:    Directory for diagnostic CSVs (default: reports/live_diagnostics).
-        enable_dynamic:     When True, enables kinematic trajectory recognition for dynamic J and Z.
-        enable_speech:      When True, enables asynchronous text-to-speech audio synthesis.
+        enable_diagnostics:    When True, writes a per-session CSV and JSONL under diagnostics_dir.
+                               Disabled by default. Does NOT capture or store video/images.
+        diagnostics_dir:       Directory for diagnostic logs (default: reports/gesture_diagnostics).
+        enable_dynamic:        When True, enables kinematic trajectory recognition for dynamic J and Z.
+        enable_speech:         When True, enables asynchronous text-to-speech audio synthesis.
+        enable_disambiguation: When True, enables fine-grained geometric disambiguation (disabled by default).
     """
     from src.landmarks.labels import SEMANTIC_CLASSES
 
@@ -777,6 +857,7 @@ def run_app(
     print(f"Mirror feed:        {mirror_feed}")
     print(f"Dynamic J/Z:        {'ENABLED' if enable_dynamic else 'disabled'}")
     print(f"Speech (TTS):       {'ENABLED' if enable_speech else 'disabled'}")
+    print(f"Geometric rules:    {'ENABLED' if enable_disambiguation else 'disabled'}")
     print(f"Diagnostics:        {'ENABLED' if enable_diagnostics else 'disabled'}")
     print("=" * 70)
 
@@ -790,7 +871,8 @@ def run_app(
             min_confidence=min_confidence,
             mirror_feed=mirror_feed,
             enable_dynamic=enable_dynamic,
-            enable_speech=enable_speech
+            enable_speech=enable_speech,
+            enable_disambiguation=enable_disambiguation,
         )
     except FileNotFoundError as e:
         print(f"Startup Error: Missing required file: {e}")
@@ -821,11 +903,16 @@ def run_app(
 
     # 3. Optionally open diagnostics logger
     diag_logger: Optional[DiagnosticsLogger] = None
+    gesture_logger: Optional[GestureDiagnosticsLogger] = None
     if enable_diagnostics:
+        os.makedirs(diagnostics_dir, exist_ok=True)
         session_ts = time.strftime("%Y%m%d_%H%M%S")
         diag_csv_path = os.path.join(diagnostics_dir, f"session_{session_ts}.csv")
         diag_logger = DiagnosticsLogger(diag_csv_path)
-        print(f"Diagnostics: writing to {diag_csv_path}")
+        diag_jsonl_path = os.path.join(diagnostics_dir, f"session_{session_ts}_targeted.jsonl")
+        gesture_logger = GestureDiagnosticsLogger(diag_jsonl_path)
+        print(f"Diagnostics: writing CSV to {diag_csv_path}")
+        print(f"Diagnostics: writing targeted JSONL to {diag_jsonl_path}")
 
     frame_count = 0
     processed_frame_index = 0  # count only frames that passed cap.read()
@@ -845,9 +932,16 @@ def run_app(
                 continue
 
             processed_frame_index += 1
-            result = pipeline.process_frame(frame, now)
+            diagnostic_info = None
+            if gesture_logger is not None:
+                diagnostic_info = {
+                    "target": gesture_logger.current_target,
+                    "trial_id": gesture_logger.current_trial_id
+                }
 
-            # Diagnostics logging (observational; after process_frame so state is settled)
+            result = pipeline.process_frame(frame, now, diagnostic_info=diagnostic_info)
+
+            # Diagnostics CSV logging (observational; after process_frame so state is settled)
             if diag_logger is not None:
                 diag_logger.log_frame(
                     frame_index=frame_count,
@@ -866,6 +960,93 @@ def run_app(
                     commit_event=result.commit_event,
                     text_buffer_length=len(pipeline.text_buffer),
                     status=result.status,
+                    error_category=result.error_category,
+                )
+
+            # Targeted Diagnostics JSONL logging
+            if gesture_logger is not None:
+                raw_p = result.raw_probabilities
+                sm_p = result.probabilities
+                c_names = SEMANTIC_CLASSES
+
+                raw_top1_lbl, raw_top1_pb = None, None
+                raw_top2_lbl, raw_top2_pb = None, None
+                margin = None
+                raw_t, raw_j, raw_z, raw_i, raw_d = None, None, None, None, None
+                if raw_p is not None and len(raw_p) == len(c_names):
+                    sort_idx = np.argsort(raw_p)[::-1]
+                    raw_top1_lbl = c_names[sort_idx[0]]
+                    raw_top1_pb = float(raw_p[sort_idx[0]])
+                    if len(sort_idx) > 1:
+                        raw_top2_lbl = c_names[sort_idx[1]]
+                        raw_top2_pb = float(raw_p[sort_idx[1]])
+                        margin = float(raw_top1_pb - raw_top2_pb)
+                    name_to_idx = {name: i for i, name in enumerate(c_names)}
+                    raw_t = float(raw_p[name_to_idx.get("T", -1)]) if "T" in name_to_idx else None
+                    raw_j = float(raw_p[name_to_idx.get("J", -1)]) if "J" in name_to_idx else None
+                    raw_z = float(raw_p[name_to_idx.get("Z", -1)]) if "Z" in name_to_idx else None
+                    raw_i = float(raw_p[name_to_idx.get("I", -1)]) if "I" in name_to_idx else None
+                    raw_d = float(raw_p[name_to_idx.get("D", -1)]) if "D" in name_to_idx else None
+
+                sm_t, sm_j, sm_z, sm_i, sm_d = None, None, None, None, None
+                if sm_p is not None and len(sm_p) == len(c_names):
+                    name_to_idx = {name: i for i, name in enumerate(c_names)}
+                    sm_t = float(sm_p[name_to_idx.get("T", -1)]) if "T" in name_to_idx else None
+                    sm_j = float(sm_p[name_to_idx.get("J", -1)]) if "J" in name_to_idx else None
+                    sm_z = float(sm_p[name_to_idx.get("Z", -1)]) if "Z" in name_to_idx else None
+                    sm_i = float(sm_p[name_to_idx.get("I", -1)]) if "I" in name_to_idx else None
+                    sm_d = float(sm_p[name_to_idx.get("D", -1)]) if "D" in name_to_idx else None
+
+                dyn_res = result.dynamic_result
+                gesture_logger.log_frame(
+                    frame_index=frame_count,
+                    timestamp_sec=now,
+                    hand_detected=result.hand_detected,
+                    handedness=result.handedness,
+                    handedness_score=result.handedness_score,
+                    landmark_count=len(result.landmarks) if result.landmarks else 0,
+                    landmarks_finite=result.hand_detected,
+                    norm_success=result.norm_success,
+                    norm_failure_reason=result.norm_failure_reason,
+                    feature_dim=63 if result.norm_success else 0,
+                    hand_scale=result.hand_scale,
+                    raw_top1_label=raw_top1_lbl,
+                    raw_top1_prob=raw_top1_pb,
+                    raw_top2_label=raw_top2_lbl,
+                    raw_top2_prob=raw_top2_pb,
+                    raw_top1_top2_margin=margin,
+                    raw_prob_t=raw_t,
+                    raw_prob_j=raw_j,
+                    raw_prob_z=raw_z,
+                    raw_prob_i=raw_i,
+                    raw_prob_d=raw_d,
+                    smoothed_top1_label=result.prediction_label,
+                    smoothed_top1_prob=result.confidence if result.prediction_label is not None else None,
+                    smoothed_prob_t=sm_t,
+                    smoothed_prob_j=sm_j,
+                    smoothed_prob_z=sm_z,
+                    smoothed_prob_i=sm_i,
+                    smoothed_prob_d=sm_d,
+                    low_conf_rejected=bool(result.prediction_label is not None and result.confidence < pipeline.sm_config.min_confidence),
+                    static_fallback_label=result.static_remapped_label,
+                    sm_input_label=result.sm_input_label,
+                    dyn_evaluated=bool(pipeline.enable_dynamic and pipeline.seq_buffer is not None),
+                    dyn_detected=dyn_res.detected if dyn_res else False,
+                    dyn_gesture=dyn_res.gesture if dyn_res else None,
+                    dyn_confidence=dyn_res.confidence if dyn_res else 0.0,
+                    dyn_reason=dyn_res.reason if dyn_res else "",
+                    dyn_buffer_len=len(pipeline.seq_buffer) if pipeline.seq_buffer else 0,
+                    pinky_posture_ok=result.pinky_posture_ok,
+                    index_posture_ok=result.index_posture_ok,
+                    sm_candidate=pipeline.state_machine.current_candidate,
+                    sm_is_dwelling=pipeline.state_machine.is_dwelling,
+                    sm_latched_label=pipeline.state_machine.latched_label,
+                    commit_event_label=result.commit_event.label if result.commit_event else None,
+                    hud_live_label=result.prediction_label,
+                    hud_live_confidence=result.confidence if result.prediction_label is not None else 0.0,
+                    hud_status=result.status,
+                    committed_text=result.committed_text,
+                    text_buffer_length=len(pipeline.text_buffer),
                     error_category=result.error_category,
                 )
 
@@ -913,6 +1094,30 @@ def run_app(
                         new_speech_state = pipeline.speech_engine.toggle()
                         print(f"Text-to-speech audio toggled: {'ON' if new_speech_state else 'OFF'}")
 
+                # 6. Diagnostic target selection (1-5, N, 0)
+                if gesture_logger is not None:
+                    if key_byte == ord('1'):
+                        tid = gesture_logger.set_target('T')
+                        print(f"\n[DIAGNOSTICS] Active Target: T (Trial: {tid})")
+                    elif key_byte == ord('2'):
+                        tid = gesture_logger.set_target('J')
+                        print(f"\n[DIAGNOSTICS] Active Target: J (Trial: {tid})")
+                    elif key_byte == ord('3'):
+                        tid = gesture_logger.set_target('Z')
+                        print(f"\n[DIAGNOSTICS] Active Target: Z (Trial: {tid})")
+                    elif key_byte == ord('4'):
+                        tid = gesture_logger.set_target('I')
+                        print(f"\n[DIAGNOSTICS] Active Target: I (Trial: {tid})")
+                    elif key_byte == ord('5'):
+                        tid = gesture_logger.set_target('D')
+                        print(f"\n[DIAGNOSTICS] Active Target: D (Trial: {tid})")
+                    elif key_byte in (ord('n'), ord('N')):
+                        tid = gesture_logger.next_trial()
+                        print(f"\n[DIAGNOSTICS] Advanced to next trial: {tid}")
+                    elif key_byte == ord('0'):
+                        tid = gesture_logger.clear_target()
+                        print(f"\n[DIAGNOSTICS] Target cleared (IDLE)")
+
             if max_frames is not None and processed_frame_index >= max_frames:
                 print(f"Reached maximum frame limit ({max_frames}). Stopping.")
                 break
@@ -929,7 +1134,10 @@ def run_app(
         cv2.destroyAllWindows()
         if diag_logger is not None:
             diag_logger.close()
-            print(f"Diagnostics file closed.")
+            print(f"Diagnostics CSV closed.")
+        if gesture_logger is not None:
+            gesture_logger.close()
+            print(f"Targeted diagnostics JSONL closed.")
         print("Cleanup complete.")
 
     return 0
@@ -953,13 +1161,15 @@ def main():
     parser.add_argument("--max-frames", type=int, default=None,
                         help="Optional maximum frames to process (useful for headless testing)")
     parser.add_argument("--diagnostics", action="store_true",
-                        help="Enable per-session diagnostic CSV logging (disabled by default)")
-    parser.add_argument("--diagnostics-dir", type=str, default="reports/live_diagnostics",
-                        help="Directory for diagnostic CSV files (default: reports/live_diagnostics)")
+                        help="Enable per-session diagnostic logging (disabled by default)")
+    parser.add_argument("--diagnostics-dir", type=str, default="reports/gesture_diagnostics",
+                        help="Directory for diagnostic files (default: reports/gesture_diagnostics)")
     parser.add_argument("--no-dynamic", action="store_true",
                         help="Disable dynamic J and Z trajectory gesture recognition")
     parser.add_argument("--no-speech", action="store_true",
                         help="Disable text-to-speech audio synthesis")
+    parser.add_argument("--enable-geometric", action="store_true",
+                        help="Enable anatomical geometric disambiguation rules (disabled by default)")
 
     args = parser.parse_args()
 
@@ -976,6 +1186,7 @@ def main():
         diagnostics_dir=args.diagnostics_dir,
         enable_dynamic=not args.no_dynamic,
         enable_speech=not args.no_speech,
+        enable_disambiguation=args.enable_geometric,
     )
     sys.exit(exit_code)
 

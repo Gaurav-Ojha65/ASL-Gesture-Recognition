@@ -1,0 +1,21 @@
+# ==============================================================================
+# ASL Gesture Studio - Web Production Dependencies Overlay
+# Target Python: 3.12.10
+#
+# Note on Base Environment:
+# This file serves as an overlay for production web deployment.
+# It requires the base root requirements.txt, which already pins:
+#   - mediapipe==1.0.1
+#   - opencv-python==5.0.0.93
+#   - numpy==2.5.2
+#   - torch==2.14.0+cu132 / torchvision==0.29.0+cu132
+#
+# Install order:
+#   pip install -r requirements.txt
+#   pip install -r requirements-prod.txt
+# ==============================================================================
+
+fastapi==0.163.1
+uvicorn[standard]==0.54.0
+websockets==17.4
+pydantic==2.14.3
