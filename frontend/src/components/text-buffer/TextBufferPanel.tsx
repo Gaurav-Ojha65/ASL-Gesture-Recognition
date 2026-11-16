@@ -99,13 +99,11 @@ export function TextBufferPanel({
       {/* Text display */}
       <div className="px-5 pt-5 pb-4 flex-1 min-h-[120px]">
         <div
-          className="min-h-[72px] break-words leading-tight"
+          className="min-h-[72px] break-words leading-tight text-3xl md:text-[44px] font-bold"
           data-testid="text-buffer-display"
           aria-live="polite"
           aria-label="Translated text output"
           style={{
-            fontSize: '44px',
-            fontWeight: '700',
             letterSpacing: '0.04em',
             color: 'var(--color-ink)',
           }}
@@ -115,7 +113,7 @@ export function TextBufferPanel({
               {textBuffer}
               {/* Coral caret */}
               <span
-                className="inline-block w-[3px] h-[44px] ml-1 align-middle animate-pulse"
+                className="inline-block w-[3px] h-7 md:h-[40px] ml-1 align-middle animate-pulse"
                 style={{ backgroundColor: 'var(--color-coral-text)' }}
                 aria-hidden="true"
               />

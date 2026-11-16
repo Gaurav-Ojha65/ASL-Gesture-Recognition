@@ -79,3 +79,12 @@ a,
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Hide scrollbars ─────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
