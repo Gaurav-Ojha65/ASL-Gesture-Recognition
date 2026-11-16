@@ -1,282 +1,204 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { fetchHealth, fetchSystemInfo } from '@/services/api';
-import type { HealthResponse, SystemInfoResponse } from '@/types/api';
-import {
-  Cpu,
-  Wifi,
-  Camera,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Info,
-  Zap,
-  Video,
-} from 'lucide-react';
+import { Link } from 'react-router-dom';
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function StatusDot({ status }: { status: 'healthy' | 'degraded' | 'offline' }) {
-  const colors: Record<string, string> = {
-    healthy: 'bg-green-400',
-    degraded: 'bg-amber-400',
-    offline: 'bg-red-500',
-  };
-  return (
-    <span
-      className={`inline-block w-3 h-3 rounded-full ${colors[status] ?? 'bg-red-500'} shadow-lg`}
-      aria-label={status}
-    />
-  );
-}
-
-function Card({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`bg-slate-900 border border-slate-800 rounded-2xl p-6 ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-function CardTitle({
-  icon,
-  children,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <h2 className="flex items-center gap-2 text-slate-100 text-lg font-semibold mb-4">
-      <span className="text-violet-500">{icon}</span>
-      {children}
-    </h2>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex justify-between items-center py-2 border-b border-slate-800 last:border-0">
-      <span className="text-slate-400 text-sm">{label}</span>
-      <span className="text-slate-100 text-sm font-mono">{value}</span>
-    </div>
-  );
-}
-
-// ─── Main Component ────────────────────────────────────────────────────────────
+const SAMPLE_TILES = [
+  'A', 'B', 'C', 'D',
+  'E', 'F', 'G', 'H',
+  'I', 'K', 'L', 'M',
+];
 
 export function Dashboard() {
-  const navigate = useNavigate();
-
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [healthError, setHealthError] = useState(false);
-  const [sysInfo, setSysInfo] = useState<SystemInfoResponse | null>(null);
-  const [sysInfoError, setSysInfoError] = useState(false);
-
-  // Fetch health (polled every 10s)
-  const pollHealth = useCallback(async () => {
-    try {
-      const data = await fetchHealth();
-      setHealth(data);
-      setHealthError(false);
-    } catch {
-      setHealth(null);
-      setHealthError(true);
-    }
-  }, []);
-
-  // Fetch system info once on mount
-  useEffect(() => {
-    fetchSystemInfo()
-      .then((data) => setSysInfo(data))
-      .catch(() => setSysInfoError(true));
-  }, []);
-
-  // Health polling
-  useEffect(() => {
-    pollHealth();
-    const id = setInterval(pollHealth, 10_000);
-    return () => clearInterval(id);
-  }, [pollHealth]);
-
-  // Derived status label
-  const healthStatus: 'healthy' | 'degraded' | 'offline' = healthError
-    ? 'offline'
-    : health?.status === 'degraded'
-    ? 'degraded'
-    : health
-    ? 'healthy'
-    : 'offline';
-
-  const statusLabel = healthError
-    ? 'Backend Offline'
-    : health?.status === 'healthy'
-    ? 'Healthy'
-    : health?.status === 'degraded'
-    ? 'Degraded'
-    : 'Connecting…';
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10">
-      {/* ── Hero ───────────────────────────────────────────────────────────── */}
-      <section className="mb-10 text-center">
-        <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent mb-4">
-          Welcome to ASL Gesture Studio
-        </h1>
-        <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-8">
-          Transform hand gestures into text in real time using computer vision and
-          deep learning.
-        </p>
-        <button
-          onClick={() => navigate('/translator')}
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:opacity-90 transition-opacity shadow-lg shadow-violet-900/40"
+    <div className="max-w-[1240px] mx-auto px-5 md:px-10 py-10 md:py-16 flex flex-col gap-12">
+      {/* ── Hero Section ──────────────────────────────────────────────── */}
+      <section className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center">
+        {/* Left: Text & CTA */}
+        <div className="flex flex-col items-start gap-6">
+          <span
+            className="inline-block text-xs font-semibold px-3 py-1 rounded-pill"
+            style={{
+              backgroundColor: 'var(--color-coral-soft)',
+              color: 'var(--color-coral-text)',
+            }}
+          >
+            American Sign Language, A to Z
+          </span>
+
+          <h1
+            className="text-4xl sm:text-5xl lg:text-[60px] font-bold tracking-tight"
+            style={{
+              color: 'var(--color-ink)',
+              lineHeight: 1.05,
+              letterSpacing: '-0.03em',
+            }}
+          >
+            Show a sign.<br />See it as text.
+          </h1>
+
+          <p
+            className="text-base sm:text-lg max-w-[480px] leading-relaxed"
+            style={{ color: 'var(--color-muted)' }}
+          >
+            Hold a letter of the ASL alphabet up to your camera and watch it appear
+            as words, with the option to hear them read aloud.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-4 pt-2">
+            <Link
+              to="/translator"
+              className="btn-sm flex items-center justify-center font-semibold px-6 py-3 transition-colors no-underline"
+              style={{
+                backgroundColor: 'var(--color-brand)',
+                color: 'var(--color-on-brand)',
+                borderRadius: 'var(--radius-button)',
+                minHeight: '44px',
+              }}
+            >
+              Start translating
+            </Link>
+
+            <Link
+              to="/model"
+              className="btn-sm flex items-center justify-center font-medium px-6 py-3 border transition-colors no-underline"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-line)',
+                color: 'var(--color-ink)',
+                borderRadius: 'var(--radius-button)',
+                minHeight: '44px',
+              }}
+            >
+              How it works
+            </Link>
+          </div>
+        </div>
+
+        {/* Right: Signs It Understands Card */}
+        <div
+          className="bg-surface border p-6 sm:p-8 flex flex-col gap-5 w-full max-w-[480px] mx-auto lg:ml-auto"
+          style={{
+            borderColor: 'var(--color-line)',
+            borderRadius: 'var(--radius-card)',
+          }}
         >
-          <Video size={18} />
-          Launch Translator
-        </button>
+          <div className="flex items-center justify-between">
+            <span
+              className="text-xs font-semibold uppercase tracking-widest"
+              style={{ color: 'var(--color-muted)', letterSpacing: '0.06em' }}
+            >
+              Signs it understands
+            </span>
+            <span
+              className="text-xs font-medium"
+              style={{ color: 'var(--color-muted)' }}
+            >
+              28 in total
+            </span>
+          </div>
+
+          {/* 4x3 Grid */}
+          <div className="grid grid-cols-4 gap-3">
+            {SAMPLE_TILES.map((letter) => {
+              const isHighlight = letter === 'F';
+              return (
+                <div
+                  key={letter}
+                  className="aspect-square flex items-center justify-center text-xl font-bold transition-transform"
+                  style={{
+                    backgroundColor: isHighlight
+                      ? 'var(--color-brand-soft)'
+                      : 'var(--color-track)',
+                    border: isHighlight
+                      ? '2px solid var(--color-brand)'
+                      : '1px solid transparent',
+                    color: isHighlight
+                      ? 'var(--color-brand)'
+                      : 'var(--color-ink)',
+                    borderRadius: '16px',
+                  }}
+                >
+                  {letter}
+                </div>
+              );
+            })}
+          </div>
+
+          <p
+            className="text-xs font-medium"
+            style={{ color: 'var(--color-muted)' }}
+          >
+            A to Z, plus space and delete.
+          </p>
+        </div>
       </section>
 
-      {/* ── Cards grid ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+      {/* ── Feature Cards ─────────────────────────────────────────────── */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+        {/* Feature 1 */}
+        <div
+          className="bg-surface border p-6 sm:p-7 flex flex-col gap-2.5"
+          style={{
+            borderColor: 'var(--color-line)',
+            borderRadius: 'var(--radius-card)',
+          }}
+        >
+          <h3
+            className="text-lg font-bold"
+            style={{ color: 'var(--color-ink)' }}
+          >
+            Works with your camera
+          </h3>
+          <p
+            className="text-sm leading-relaxed"
+            style={{ color: 'var(--color-muted)' }}
+          >
+            Your hand is tracked through your webcam. Nothing to install and no gloves or sensors.
+          </p>
+        </div>
 
-        {/* System Status Card */}
-        <Card>
-          <CardTitle icon={<Wifi size={18} />}>System Status</CardTitle>
-          <div className="flex items-center gap-3 mb-4">
-            <StatusDot status={healthStatus} />
-            <span
-              className={
-                healthStatus === 'healthy'
-                  ? 'text-green-400 font-semibold'
-                  : healthStatus === 'degraded'
-                  ? 'text-amber-400 font-semibold'
-                  : 'text-red-400 font-semibold'
-              }
-            >
-              {statusLabel}
-            </span>
-            <span className="text-slate-500 text-xs ml-auto">polls every 10s</span>
-          </div>
-          {healthError ? (
-            <div className="flex items-center gap-2 text-red-400 text-sm mt-2">
-              <XCircle size={16} />
-              Cannot reach backend at <code className="text-xs">/api/health</code>
-            </div>
-          ) : health ? (
-            <>
-              <InfoRow
-                label="Model Loaded"
-                value={
-                  health.model_loaded ? (
-                    <CheckCircle size={16} className="text-green-400" />
-                  ) : (
-                    <XCircle size={16} className="text-red-400" />
-                  )
-                }
-              />
-              <InfoRow
-                label="Detector Loaded"
-                value={
-                  health.detector_loaded ? (
-                    <CheckCircle size={16} className="text-green-400" />
-                  ) : (
-                    <XCircle size={16} className="text-red-400" />
-                  )
-                }
-              />
-              <InfoRow
-                label="Active Sessions"
-                value={health.active_sessions}
-              />
-            </>
-          ) : (
-            <p className="text-slate-500 text-sm">Connecting to backend…</p>
-          )}
-        </Card>
+        {/* Feature 2 */}
+        <div
+          className="bg-surface border p-6 sm:p-7 flex flex-col gap-2.5"
+          style={{
+            borderColor: 'var(--color-line)',
+            borderRadius: 'var(--radius-card)',
+          }}
+        >
+          <h3
+            className="text-lg font-bold"
+            style={{ color: 'var(--color-ink)' }}
+          >
+            Confirms before it types
+          </h3>
+          <p
+            className="text-sm leading-relaxed"
+            style={{ color: 'var(--color-muted)' }}
+          >
+            A sign only counts after you hold it steady for a moment, so passing gestures don't create stray letters.
+          </p>
+        </div>
 
-        {/* Model Info Card */}
-        <Card>
-          <CardTitle icon={<Cpu size={18} />}>Model Info</CardTitle>
-          {sysInfoError ? (
-            <div className="flex items-center gap-2 text-red-400 text-sm">
-              <XCircle size={16} />
-              Could not load system info.
-            </div>
-          ) : sysInfo ? (
-            <>
-              <InfoRow label="App" value={sysInfo.app_name} />
-              <InfoRow label="Output Classes" value={sysInfo.num_classes} />
-              <InfoRow
-                label="Parameters"
-                value={sysInfo.model_param_count.toLocaleString()}
-              />
-              <InfoRow label="Input Dim" value={sysInfo.input_dim} />
-              <InfoRow label="Device" value={sysInfo.device} />
-              <InfoRow label="Torch" value={sysInfo.torch_version} />
-            </>
-          ) : (
-            <p className="text-slate-500 text-sm">Loading model info…</p>
-          )}
-        </Card>
-
-        {/* Capabilities Card */}
-        <Card>
-          <CardTitle icon={<Zap size={18} />}>Capabilities</CardTitle>
-          <ul className="space-y-3">
-            {[
-              {
-                icon: <Camera size={16} className="text-violet-500 shrink-0" />,
-                text: '21 MediaPipe hand landmarks',
-              },
-              {
-                icon: <Info size={16} className="text-violet-500 shrink-0" />,
-                text: '63-dimensional feature representation',
-              },
-              {
-                icon: <CheckCircle size={16} className="text-violet-500 shrink-0" />,
-                text: '28 output classes: A–Z, SPACE, DELETE',
-              },
-              {
-                icon: <Zap size={16} className="text-violet-500 shrink-0" />,
-                text: '12 FPS cap real-time recognition',
-              },
-            ].map(({ icon, text }) => (
-              <li key={text} className="flex items-start gap-3 text-slate-300 text-sm">
-                {icon}
-                <span>{text}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-
-        {/* Known Limitations Card */}
-        <Card>
-          <CardTitle icon={<AlertTriangle size={18} />}>Known Limitations</CardTitle>
-          <ul className="space-y-3">
-            {[
-              'J and Z require motion — static handshape fallback may show I or D respectively.',
-              'T can be confused with nearby fist-shaped gestures (M, N).',
-              'Best recognition at moderate distance, centered hand, and good lighting.',
-              'No claim of perfect recognition accuracy — results vary with hand orientation and lighting conditions.',
-            ].map((text) => (
-              <li key={text} className="flex items-start gap-3 text-sm text-slate-400">
-                <AlertTriangle
-                  size={15}
-                  className="text-amber-400 shrink-0 mt-0.5"
-                />
-                <span>{text}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
+        {/* Feature 3 */}
+        <div
+          className="bg-surface border p-6 sm:p-7 flex flex-col gap-2.5"
+          style={{
+            borderColor: 'var(--color-line)',
+            borderRadius: 'var(--radius-card)',
+          }}
+        >
+          <h3
+            className="text-lg font-bold"
+            style={{ color: 'var(--color-ink)' }}
+          >
+            Honest about limits
+          </h3>
+          <p
+            className="text-sm leading-relaxed"
+            style={{ color: 'var(--color-muted)' }}
+          >
+            J and Z need motion, so they can be misread. Light, distance and hand angle affect results.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
