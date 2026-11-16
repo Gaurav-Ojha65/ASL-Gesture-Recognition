@@ -8,7 +8,6 @@ interface NavBarProps {
 const NAV_ITEMS = [
   { to: '/', label: 'Home', end: true },
   { to: '/translator', label: 'Translate', end: false },
-  { to: '/alphabet', label: 'Alphabet', end: false },
   { to: '/model', label: 'How it works', end: false },
   { to: '/diagnostics', label: 'Developer tools', end: false },
 ];

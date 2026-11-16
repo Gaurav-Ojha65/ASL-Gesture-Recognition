@@ -17,7 +17,6 @@ describe('Frontend Component Tests', () => {
     expect(screen.getAllByText(/ASL Gesture/i).length).toBeGreaterThan(0);
     expect(screen.getByText('Home')).toBeInTheDocument();
     expect(screen.getByText('Translate')).toBeInTheDocument();
-    expect(screen.getByText('Alphabet')).toBeInTheDocument();
     expect(screen.getByText('How it works')).toBeInTheDocument();
     expect(screen.getByText('Developer tools')).toBeInTheDocument();
 

@@ -127,9 +127,9 @@ export function RecognitionPanel({
           {/* Center character */}
           <text
             x="100"
-            y="115"
+            y="130"
             textAnchor="middle"
-            fontSize="72"
+            fontSize="92"
             fontWeight="700"
             fontFamily="'Inter Variable', system-ui, sans-serif"
             fill={committed ? 'var(--color-success)' : 'var(--color-ink)'}

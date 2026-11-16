@@ -4,7 +4,7 @@ import { Dashboard } from '@/pages/Dashboard';
 import { LiveTranslator } from '@/pages/LiveTranslator';
 import { ModelInsights } from '@/pages/ModelInsights';
 import { Diagnostics } from '@/pages/Diagnostics';
-import { Alphabet } from '@/pages/Alphabet';
+import { DevStates } from '@/pages/DevStates';
 import { CameraStatusProvider, useCameraStatus } from '@/context/CameraStatusContext';
 
 function AppShell() {
@@ -21,9 +21,9 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/translator" element={<LiveTranslator />} />
-          <Route path="/alphabet" element={<Alphabet />} />
           <Route path="/model" element={<ModelInsights />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
+          <Route path="/dev-states" element={<DevStates />} />
         </Routes>
       </main>
 
